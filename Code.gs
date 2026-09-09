@@ -190,7 +190,7 @@ function validateTransactionPayload_(payload) {
   const namaBank = String(payload.namaBank || '').trim();
   const tanggalTransaksi = String(payload.tanggalTransaksi || '').trim();
   const keterangan = String(payload.keterangan || '').trim();
-  const jumlahTransaksi = Number(payload.jumlahTransaksi);
+  const jumlahTransaksi = parseNominal_(payload.jumlahTransaksi);
   if (!noTransaksi) throw new Error('No transaksi wajib diisi.');
   if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]{1,79}$/.test(noTransaksi)) throw new Error('No transaksi mengandung karakter yang tidak aman.');
   if (!namaBank) throw new Error('Nama bank wajib diisi.');
@@ -307,9 +307,9 @@ function rowToTransaction_(row) {
   let docPengajuanUrl = '', docBayarUrl = '', invoiceUrl = '';
   let createdAt = '', updatedAt = '';
 
-  if (row.length >= 15 || (isNaN(Number(row[4])) && !isNaN(Number(row[5])))) {
+  if (row.length >= 15 || (isNaN(parseNominal_(row[4])) && !isNaN(parseNominal_(row[5])))) {
     keterangan = String(row[4] || '');
-    jumlahTransaksi = Number(row[5]) || 0;
+    jumlahTransaksi = parseNominal_(row[5]) || 0;
     docPengajuanName = row[6];
     docBayarName = row[7];
     invoiceName = row[8];
@@ -321,7 +321,7 @@ function rowToTransaction_(row) {
     updatedAt = toIso_(row[14]);
   } else {
     keterangan = '';
-    jumlahTransaksi = Number(row[4]) || 0;
+    jumlahTransaksi = parseNominal_(row[4]) || 0;
     docPengajuanName = row[5];
     docBayarName = row[6];
     invoiceName = row[7];
@@ -354,3 +354,18 @@ function toIso_(value) { const date = value instanceof Date ? value : new Date(v
 function findRowById_(id) { const sheet = getTransactionSheet_(); const values = sheet.getDataRange().getValues(); for (let index = 1; index < values.length; index++) if (String(values[index][0]) === id) return { sheet, rowNumber: index + 1, values: values[index] }; return null; }
 function findRowByTransactionNumber_(number) { const sheet = getTransactionSheet_(); const values = sheet.getDataRange().getValues(); for (let index = 1; index < values.length; index++) if (String(values[index][1]).trim().toLowerCase() === String(number).trim().toLowerCase()) return { sheet, rowNumber: index + 1, values: values[index] }; return null; }
 function sheetUpdateRow_(sheet, rowNumber, values) { sheet.getRange(rowNumber, 1, 1, values.length).setValues([values]); }
+function parseNominal_(val) {
+  if (typeof val === 'number') return val;
+  let s = String(val || '').trim();
+  if (!s) return NaN;
+  if (s.includes('.') && s.includes(',')) {
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+  } else if (s.includes(',')) {
+    s = s.replace(',', '.');
+  }
+  return Number(s);
+}
