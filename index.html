@@ -226,7 +226,43 @@ let isLoading = true;
 let loadError = null;
 
 const $ = id => document.getElementById(id);
-const rupiah = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
+const parseNominal = val => {
+  if (typeof val === 'number') return val;
+  let s = String(val || '').trim();
+  if (!s) return NaN;
+  if (s.includes('.') && s.includes(',')) {
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+  } else if (s.includes(',')) {
+    s = s.replace(',', '.');
+  }
+  return Number(s);
+};
+
+const formatAmountInput = val => {
+  if (val === null || val === undefined || val === '') return '';
+  const num = parseNominal(val);
+  if (isNaN(num)) return String(val);
+  if (num % 1 !== 0) {
+    return String(num).replace('.', ',');
+  }
+  return String(num);
+};
+
+const rupiah = value => {
+  const num = parseNominal(value);
+  if (isNaN(num)) return 'Rp 0';
+  const hasDecimal = (num % 1 !== 0);
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: hasDecimal ? 2 : 0,
+    maximumFractionDigits: 2
+  }).format(num);
+};
 const escapeHtml = str => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 const toast = message => {
   const el = $('toast');
@@ -297,7 +333,7 @@ function render() {
       && (filter.status === 'all' || t.statusBukti === filter.status);
   }).sort((a, b) => b.tanggalTransaksi.localeCompare(a.tanggalTransaksi));
 
-  const total = filtered.reduce((s, t) => s + Number(t.jumlahTransaksi), 0);
+  const total = filtered.reduce((s, t) => s + (parseNominal(t.jumlahTransaksi) || 0), 0);
 
   let tbodyHtml = '';
   if (isLoading) {
@@ -495,7 +531,7 @@ function openForm(id) {
             <label>Nama Bank <em>*</em><select id="f-bank" required><option value="">Pilih bank</option>${banks.map(b => `<option ${b === t.namaBank ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('')}</select></label>
             <label>Tanggal Transaksi <em>*</em><input id="f-date" type="date" required value="${t.tanggalTransaksi || ''}"></label>
             <label>Keterangan<input id="f-desc" placeholder="Contoh: Pembayaran supplier, biaya operasional..." value="${escapeHtml(t.keterangan || '')}"></label>
-            <label class="full-field" style="grid-column: span 2;">Jumlah Transaksi <em>*</em><input id="f-amount" type="number" min="1" required value="${t.jumlahTransaksi || ''}"></label>
+            <label class="full-field" style="grid-column: span 2;">Jumlah Transaksi <em>*</em><input id="f-amount" type="text" inputmode="decimal" placeholder="Contoh: 1500000 atau 1500000,50" required value="${formatAmountInput(t.jumlahTransaksi)}"></label>
           </div>
           <div class="docs">
             ${docForm('buktiPengajuan', 'Bukti Pengajuan', t.buktiPengajuan)}
@@ -617,10 +653,11 @@ function save(event) {
   const namaBank = $('f-bank').value.trim();
   const tanggalTransaksi = $('f-date').value.trim();
   const keterangan = $('f-desc') ? $('f-desc').value.trim() : '';
-  const jumlahTransaksi = Number($('f-amount').value);
+  const rawAmount = $('f-amount') ? $('f-amount').value.trim() : '';
+  const jumlahTransaksi = parseNominal(rawAmount);
 
-  if (!noTransaksi || !namaBank || !tanggalTransaksi || !jumlahTransaksi) {
-    toast('Mohon lengkapi semua field yang wajib diisi.');
+  if (!noTransaksi || !namaBank || !tanggalTransaksi || isNaN(jumlahTransaksi) || jumlahTransaksi <= 0) {
+    toast('Mohon lengkapi semua field yang wajib diisi dengan benar.');
     return;
   }
 
