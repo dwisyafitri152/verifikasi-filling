@@ -9,10 +9,75 @@ const HEADERS = [
   'Link Bukti Pengajuan', 'Link Bukti Bayar', 'Link Invoice', 'Created At', 'Updated At'
 ];
 
-function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('Verifikasi Filling')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+function doGet(e) {
+  if (e && e.parameter && e.parameter.action) {
+    return handleApiRequest_(e.parameter.action, e.parameter);
+  }
+  try {
+    return HtmlService.createHtmlOutputFromFile('Index')
+      .setTitle('Verifikasi Filling')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (err) {
+    return HtmlService.createHtmlOutputFromFile('index')
+      .setTitle('Verifikasi Filling')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+}
+
+function doPost(e) {
+  try {
+    let payload = {};
+    if (e && e.postData && e.postData.contents) {
+      payload = JSON.parse(e.postData.contents);
+    } else if (e && e.parameter) {
+      payload = e.parameter;
+    }
+    const action = payload.action;
+    const args = payload.args || [];
+    let result;
+    if (action === 'getData') {
+      result = getData();
+    } else if (action === 'getBanks') {
+      result = getBanks();
+    } else if (action === 'getTransactionById') {
+      result = getTransactionById(args[0]);
+    } else if (action === 'addTransaction') {
+      result = addTransaction(args[0]);
+    } else if (action === 'updateTransaction') {
+      result = updateTransaction(args[0], args[1]);
+    } else if (action === 'deleteTransaction') {
+      result = deleteTransaction(args[0]);
+    } else if (action === 'uploadFile') {
+      result = uploadFile(args[0]);
+    } else {
+      throw new Error('Action tidak valid: ' + action);
+    }
+    return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message || String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function handleApiRequest_(action, params) {
+  try {
+    let result;
+    if (action === 'getData') {
+      result = getData();
+    } else if (action === 'getBanks') {
+      result = getBanks();
+    } else if (action === 'getTransactionById') {
+      result = getTransactionById(params.id);
+    } else {
+      throw new Error('Action tidak dikenal: ' + action);
+    }
+    return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message || String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function getData() {
@@ -77,6 +142,9 @@ function deleteTransaction(id) {
 
 function uploadFile(payload) {
   if (!payload || !payload.base64 || !payload.fileName || !payload.documentKey) throw new Error('Data file tidak lengkap.');
+  if (!/\.(jpe?g|png|pdf)$/i.test(payload.fileName)) {
+    throw new Error('Format file tidak didukung. Gunakan JPG, JPEG, PNG, atau PDF.');
+  }
   const safeId = validateId_(payload.transactionId || Utilities.getUuid());
   const input = { noTransaksi: payload.noTransaksi || safeId, tanggalTransaksi: payload.tanggalTransaksi || formatDateInput_(new Date()) };
   const file = saveFileToDrive_(payload, input, safeId, payload.documentKey);
@@ -134,9 +202,17 @@ function validateDocument_(document, key) {
     if (!isDriveUrl_(document)) throw new Error('Link ' + key + ' harus berasal dari Google Drive.');
     return;
   }
-  if (document.url && !isDriveUrl_(document.url)) throw new Error('Link ' + key + ' harus berasal dari Google Drive.');
-  if (document.base64 && (!document.fileName || !document.mimeType)) throw new Error('Data file ' + key + ' tidak lengkap.');
-  if (document.base64 && document.base64.length > 14 * 1024 * 1024) throw new Error('File ' + key + ' terlalu besar.');
+  const url = document.url || document.fileUrl;
+  if (url && !document.base64 && !isDriveUrl_(url)) {
+    throw new Error('Link ' + key + ' harus berasal dari Google Drive.');
+  }
+  if (document.base64) {
+    if (!document.fileName) throw new Error('Data file ' + key + ' tidak lengkap.');
+    if (!/\.(jpe?g|png|pdf)$/i.test(document.fileName)) {
+      throw new Error('Format file tidak didukung. Gunakan JPG, JPEG, PNG, atau PDF.');
+    }
+    if (document.base64.length > 14 * 1024 * 1024) throw new Error('File ' + key + ' terlalu besar (maksimal 10 MB).');
+  }
 }
 
 function isDriveUrl_(url) {
@@ -153,12 +229,16 @@ function saveDocuments_(input, transactionId, previous) {
   const result = { buktiPengajuan: previous && previous.buktiPengajuan || null, buktiBayar: previous && previous.buktiBayar || null, invoice: previous && previous.invoice || null };
   ['buktiPengajuan', 'buktiBayar', 'invoice'].forEach(key => {
     const value = input[key];
-    if (!value) return;
+    if (value === undefined) return;
+    if (value === null) {
+      result[key] = null;
+      return;
+    }
     if (value.base64) {
       const file = saveFileToDrive_(value, input, transactionId, key);
       result[key] = { fileId: file.getId(), fileName: file.getName(), fileUrl: file.getUrl() };
     } else if (value.url) {
-      result[key] = { fileId: value.fileId || '', fileName: value.name || 'Link Google Drive', fileUrl: value.url };
+      result[key] = { fileId: value.fileId || extractDriveId_(value.url), fileName: value.name || value.fileName || 'Link Google Drive', fileUrl: value.url };
     } else if (value.fileId || value.fileUrl || value.fileName) {
       result[key] = { fileId: value.fileId || '', fileName: value.fileName || value.name || '', fileUrl: value.fileUrl || value.url || '' };
     }
@@ -175,8 +255,22 @@ function saveFileToDrive_(payload, input, transactionId, documentKey) {
   const transactionFolder = getOrCreateFolder_(monthFolder, String(input.noTransaksi || transactionId));
   const documentFolder = getOrCreateFolder_(transactionFolder, documentFolderName_(documentKey));
   const bytes = Utilities.base64Decode(String(payload.base64).replace(/^data:[^;]+;base64,/, ''));
-  const blob = Utilities.newBlob(bytes, payload.mimeType || MimeType.PDF, sanitizeFileName_(payload.fileName));
-  return documentFolder.createFile(blob);
+  let mime = payload.mimeType;
+  if (!mime || mime === 'application/octet-stream') {
+    const ext = String(payload.fileName || '').toLowerCase();
+    if (ext.endsWith('.png')) mime = MimeType.PNG;
+    else if (ext.endsWith('.jpg') || ext.endsWith('.jpeg')) mime = MimeType.JPEG;
+    else if (ext.endsWith('.pdf')) mime = MimeType.PDF;
+    else mime = MimeType.PDF;
+  }
+  const blob = Utilities.newBlob(bytes, mime, sanitizeFileName_(payload.fileName));
+  const file = documentFolder.createFile(blob);
+  try {
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (e) {
+    // Tetap lanjutkan jika domain membatasi sharing publik
+  }
+  return file;
 }
 
 function getOrCreateFolder_(parent, name) {
