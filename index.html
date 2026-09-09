@@ -59,7 +59,7 @@
     .table-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #eef2f7}
     .table-head h3{margin:4px 0 0;font-size:16px}
     .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
-    table{width:100%;min-width:980px;border-collapse:collapse}
+    table{width:100%;min-width:1040px;border-collapse:collapse}
     th,td{padding:12px 10px;border-bottom:1px solid #f1f5f9;text-align:left;white-space:nowrap}
     th{color:#94a3b8;background:#fbfdff;font-size:9px;text-transform:uppercase;letter-spacing:.5px}
     td{font-size:11px;color:#475569}
@@ -130,10 +130,84 @@
     @media(max-width:440px){
       .filter-list{grid-template-columns:1fr}
     }
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .spin{display:inline-block;animation:spin 1s linear infinite}
   </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="app">
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
+  <aside id="sidebar" class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">✓</div>
+      <div><strong>VERIFIKASI</strong><small>FILLING</small></div>
+    </div>
+    <div class="side-label">WORKSPACE</div>
+    <div class="nav">
+      <button class="active">▦ &nbsp; Dashboard</button>
+    </div>
+    <div class="side-bottom">
+      <div class="user">◉ <span><b>Finance & Accounting</b><br>Workspace aktif</span></div>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle" aria-label="Buka Menu">☰</button>
+        <div><div class="eyebrow">FINANCE CONTROL DESK</div><h1>Dashboard</h1></div>
+      </div>
+      <div class="today">▣ &nbsp; Memuat...</div>
+    </header>
+    <div class="content">
+      <div class="intro">
+        <div>
+          <div class="eyebrow">RINGKASAN VERIFIKASI</div>
+          <h2>Kontrol kelengkapan dokumen</h2>
+          <p>Pantau bukti transaksi dan tindak lanjuti dokumen yang belum lengkap.</p>
+        </div>
+        <button class="primary" onclick="openForm()">＋ Tambah Transaksi</button>
+      </div>
+      <section class="stats">
+        <article class="stat"><span>Total Transaksi</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>Semua transaksi</small></article>
+        <article class="stat"><span>Bukti Lengkap</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>sudah terverifikasi</small></article>
+        <article class="stat"><span>Sebagian Lengkap</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>perlu tindak lanjut</small></article>
+        <article class="stat"><span>Tidak Ada Bukti</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>segera lengkapi</small></article>
+        <article class="stat"><span>Total Nilai Transaksi</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>mengikuti filter aktif</small></article>
+      </section>
+      <section class="panel filters">
+        <div class="search">⌕ <input placeholder="Cari No Transaksi atau Nama Bank..." disabled></div>
+        <div class="filter-list">
+          <label>Bulan<select disabled><option>Semua Bulan</option></select></label>
+          <label>Tahun<select disabled><option>Semua Tahun</option></select></label>
+          <label>Bank<select disabled><option>Semua Bank</option></select></label>
+          <label>Status<select disabled><option>Semua Status</option></select></label>
+        </div>
+      </section>
+      <section class="table-wrap">
+        <div class="table-head">
+          <div><div class="kicker">DATA TRANSAKSI</div><h3>Daftar transaksi</h3></div>
+          <span>Memuat data...</span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>No</th><th>Transaksi</th><th>Bank</th><th>Tanggal</th><th>Keterangan</th><th>Jumlah</th><th>Pengajuan</th><th>Bayar</th><th>Invoice</th><th>Status</th><th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;"><span class="spin" style="margin-right:8px;font-size:14px;">⟳</span>Sedang memuat data transaksi...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="footer">
+          <span>Menampilkan data terfilter</span>
+          <span>Sistem Verifikasi Dokumen</span>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
 <div id="toast" class="toast hidden"></div>
 <script>
 // ==========================================================================
@@ -148,9 +222,12 @@ const isAppsScript = typeof google !== 'undefined' && Boolean(google.script) && 
 let data = [], banks = [], filter = { q: '', month: '0', year: 'all', bank: 'all', status: 'all' }, editing = null;
 let pendingFiles = {}, removedDocs = {};
 let isSidebarOpen = false;
+let isLoading = true;
+let loadError = null;
 
 const $ = id => document.getElementById(id);
 const rupiah = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
+const escapeHtml = str => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 const toast = message => {
   const el = $('toast');
   if (!el) return;
@@ -199,10 +276,21 @@ function toggleSidebar(forcedState) {
   if (ov) ov.classList.toggle('open', isSidebarOpen);
 }
 
+function handleSearch(el) {
+  filter.q = el.value.toLowerCase();
+  render();
+  const searchInput = $('search-input');
+  if (searchInput) {
+    searchInput.focus();
+    const len = searchInput.value.length;
+    searchInput.setSelectionRange(len, len);
+  }
+}
+
 function render() {
   const filtered = data.filter(t => {
     const d = new Date(t.tanggalTransaksi);
-    return (!filter.q || t.noTransaksi.toLowerCase().includes(filter.q) || t.namaBank.toLowerCase().includes(filter.q))
+    return (!filter.q || t.noTransaksi.toLowerCase().includes(filter.q) || t.namaBank.toLowerCase().includes(filter.q) || (t.keterangan && t.keterangan.toLowerCase().includes(filter.q)))
       && (filter.month === '0' || String(d.getMonth() + 1) === filter.month)
       && (filter.year === 'all' || t.tanggalTransaksi.startsWith(filter.year))
       && (filter.bank === 'all' || t.namaBank === filter.bank)
@@ -210,6 +298,30 @@ function render() {
   }).sort((a, b) => b.tanggalTransaksi.localeCompare(a.tanggalTransaksi));
 
   const total = filtered.reduce((s, t) => s + Number(t.jumlahTransaksi), 0);
+
+  let tbodyHtml = '';
+  if (isLoading) {
+    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;"><span class="spin" style="margin-right:8px;font-size:14px;">⟳</span>Sedang memuat data transaksi...</td></tr>`;
+  } else if (!isAppsScript && !getActiveApiUrl()) {
+    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">
+      Belum terhubung ke backend Google Apps Script.<br>
+      <span style="font-size:11px;color:#94a3b8;display:block;margin:6px 0 12px;">Untuk memuat dan menyimpan data transaksi ke Google Sheets, tentukan URL Web App pada menu Pengaturan API.</span>
+      <button type="button" class="primary" style="padding:6px 16px;font-size:11px;" onclick="showApiConfigModal()">⚙ Buka Pengaturan API</button>
+    </td></tr>`;
+  } else if (loadError) {
+    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--red);font-size:12px;">${loadError}<br><button type="button" class="secondary" style="margin-top:12px;padding:6px 16px;font-size:11px;" onclick="load()">⟳ Coba Muat Ulang</button></td></tr>`;
+  } else if (filtered.length) {
+    tbodyHtml = filtered.map((t, i) => row(t, i + 1)).join('');
+  } else {
+    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">Belum ada transaksi yang cocok.<br>Ubah filter atau tambahkan transaksi baru.</td></tr>`;
+  }
+
+  const statDisplay = (val) => {
+    if (isLoading) return '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>';
+    if (!isAppsScript && !getActiveApiUrl()) return '0';
+    return val;
+  };
+  const totalDisplay = isLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : (!isAppsScript && !getActiveApiUrl()) ? rupiah(0) : rupiah(total);
 
   $('app').innerHTML = `
     <div id="sidebar-overlay" class="sidebar-overlay ${isSidebarOpen ? 'open' : ''}" onclick="toggleSidebar(false)"></div>
@@ -249,14 +361,14 @@ function render() {
           <button class="primary" onclick="openForm()">＋ Tambah Transaksi</button>
         </div>
         <section class="stats">
-          ${stat('Total Transaksi', filtered.length, 'Semua transaksi')}
-          ${stat('Bukti Lengkap', filtered.filter(t => t.statusBukti === 'BUKTI LENGKAP').length, 'sudah terverifikasi')}
-          ${stat('Sebagian Lengkap', filtered.filter(t => t.statusBukti === 'SEBAGIAN LENGKAP').length, 'perlu tindak lanjut')}
-          ${stat('Tidak Ada Bukti', filtered.filter(t => t.statusBukti === 'TIDAK ADA BUKTI').length, 'segera lengkapi')}
-          ${stat('Total Nilai Transaksi', rupiah(total), 'mengikuti filter aktif')}
+          ${stat('Total Transaksi', statDisplay(filtered.length), 'Semua transaksi')}
+          ${stat('Bukti Lengkap', statDisplay(filtered.filter(t => t.statusBukti === 'BUKTI LENGKAP').length), 'sudah terverifikasi')}
+          ${stat('Sebagian Lengkap', statDisplay(filtered.filter(t => t.statusBukti === 'SEBAGIAN LENGKAP').length), 'perlu tindak lanjut')}
+          ${stat('Tidak Ada Bukti', statDisplay(filtered.filter(t => t.statusBukti === 'TIDAK ADA BUKTI').length), 'segera lengkapi')}
+          ${stat('Total Nilai Transaksi', totalDisplay, 'mengikuti filter aktif')}
         </section>
         <section class="panel filters">
-          <div class="search">⌕ <input placeholder="Cari No Transaksi atau Nama Bank..." value="${filter.q}" oninput="filter.q=this.value.toLowerCase();render()"></div>
+          <div class="search">⌕ <input id="search-input" placeholder="Cari No Transaksi, Nama Bank, atau Keterangan..." value="${filter.q}" oninput="handleSearch(this)"></div>
           <div class="filter-list">
             ${select('month', 'Bulan', ['Semua Bulan', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'])}
             ${select('year', 'Tahun', ['Semua Tahun', ...years(data)])}
@@ -267,7 +379,7 @@ function render() {
         <section class="table-wrap">
           <div class="table-head">
             <div><div class="kicker">DATA TRANSAKSI</div><h3>Daftar transaksi</h3></div>
-            <span>${filtered.length} transaksi ditemukan</span>
+            <span>${isLoading ? 'Memuat data...' : (!isAppsScript && !getActiveApiUrl()) ? 'Belum terhubung' : filtered.length + ' transaksi ditemukan'}</span>
           </div>
           <div class="table-scroll">
             <table>
@@ -277,6 +389,7 @@ function render() {
                   <th>Transaksi</th>
                   <th>Bank</th>
                   <th>Tanggal</th>
+                  <th>Keterangan</th>
                   <th>Jumlah</th>
                   <th>Pengajuan</th>
                   <th>Bayar</th>
@@ -286,11 +399,10 @@ function render() {
                 </tr>
               </thead>
               <tbody>
-                ${filtered.map((t, i) => row(t, i + 1)).join('')}
+                ${tbodyHtml}
               </tbody>
             </table>
           </div>
-          ${filtered.length ? '' : '<div class="empty-state">Belum ada transaksi yang cocok.<br>Ubah filter atau tambahkan transaksi baru.</div>'}
           <div class="footer">
             <span>Menampilkan data terfilter</span>
             <span>Sistem Verifikasi Dokumen</span>
@@ -331,11 +443,13 @@ function select(key, label, items) {
 
 function row(t, i) {
   const dateStr = t.tanggalTransaksi ? new Date(t.tanggalTransaksi).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+  const ketStr = t.keterangan ? escapeHtml(t.keterangan) : '<span class="missing">-</span>';
   return `<tr>
     <td>${String(i).padStart(2, '0')}</td>
-    <td><b>${t.noTransaksi}</b><br><small>Transaksi keuangan</small></td>
-    <td>${t.namaBank}</td>
+    <td><b>${escapeHtml(t.noTransaksi)}</b><br><small>Transaksi keuangan</small></td>
+    <td>${escapeHtml(t.namaBank)}</td>
     <td>${dateStr}</td>
+    <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(t.keterangan || '')}">${ketStr}</td>
     <td class="amount">${rupiah(t.jumlahTransaksi)}</td>
     ${docCell(t.buktiPengajuan)}
     ${docCell(t.buktiBayar)}
@@ -360,7 +474,7 @@ function openForm(id) {
   editing = data.find(t => t.id === id) || null;
   pendingFiles = {};
   removedDocs = {};
-  const t = editing || { noTransaksi: '', namaBank: '', tanggalTransaksi: '', jumlahTransaksi: '', buktiPengajuan: null, buktiBayar: null, invoice: null };
+  const t = editing || { noTransaksi: '', namaBank: '', tanggalTransaksi: '', keterangan: '', jumlahTransaksi: '', buktiPengajuan: null, buktiBayar: null, invoice: null };
 
   const prevModal = $('modal');
   if (prevModal) prevModal.remove();
@@ -377,10 +491,11 @@ function openForm(id) {
         </header>
         <form class="form" onsubmit="save(event)">
           <div class="grid">
-            <label>No Transaksi <em>*</em><input id="f-no" required value="${t.noTransaksi}"></label>
-            <label>Nama Bank <em>*</em><select id="f-bank" required><option value="">Pilih bank</option>${banks.map(b => `<option ${b === t.namaBank ? 'selected' : ''}>${b}</option>`).join('')}</select></label>
-            <label>Tanggal Transaksi <em>*</em><input id="f-date" type="date" required value="${t.tanggalTransaksi}"></label>
-            <label>Jumlah Transaksi <em>*</em><input id="f-amount" type="number" min="1" required value="${t.jumlahTransaksi}"></label>
+            <label>No Transaksi <em>*</em><input id="f-no" required value="${escapeHtml(t.noTransaksi || '')}"></label>
+            <label>Nama Bank <em>*</em><select id="f-bank" required><option value="">Pilih bank</option>${banks.map(b => `<option ${b === t.namaBank ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('')}</select></label>
+            <label>Tanggal Transaksi <em>*</em><input id="f-date" type="date" required value="${t.tanggalTransaksi || ''}"></label>
+            <label>Keterangan<input id="f-desc" placeholder="Contoh: Pembayaran supplier, biaya operasional..." value="${escapeHtml(t.keterangan || '')}"></label>
+            <label class="full-field" style="grid-column: span 2;">Jumlah Transaksi <em>*</em><input id="f-amount" type="number" min="1" required value="${t.jumlahTransaksi || ''}"></label>
           </div>
           <div class="docs">
             ${docForm('buktiPengajuan', 'Bukti Pengajuan', t.buktiPengajuan)}
@@ -501,6 +616,7 @@ function save(event) {
   const noTransaksi = $('f-no').value.trim();
   const namaBank = $('f-bank').value.trim();
   const tanggalTransaksi = $('f-date').value.trim();
+  const keterangan = $('f-desc') ? $('f-desc').value.trim() : '';
   const jumlahTransaksi = Number($('f-amount').value);
 
   if (!noTransaksi || !namaBank || !tanggalTransaksi || !jumlahTransaksi) {
@@ -512,6 +628,7 @@ function save(event) {
     noTransaksi: noTransaksi,
     namaBank: namaBank,
     tanggalTransaksi: tanggalTransaksi,
+    keterangan: keterangan,
     jumlahTransaksi: jumlahTransaksi
   };
 
@@ -548,6 +665,16 @@ function save(event) {
   const fn = editing ? 'updateTransaction' : 'addTransaction';
   const args = editing ? [editing.id, payload] : [payload];
 
+  if (!isAppsScript && !getActiveApiUrl()) {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Simpan';
+    }
+    toast('URL API belum dikonfigurasi. Silakan buka Pengaturan API.');
+    showApiConfigModal();
+    return;
+  }
+
   call(fn, args).then(result => {
     if (editing) {
       data = data.map(t => t.id === result.id ? result : t);
@@ -562,20 +689,23 @@ function save(event) {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Simpan';
     }
-    console.error('Error saat menyimpan transaksi:', error);
-    toast(error.message || 'Gagal menyimpan data. Silakan coba lagi.');
+    toast(error && error.message ? error.message : 'Gagal menyimpan data. Silakan coba lagi.');
   });
 }
 
 function confirmDelete(id) {
+  if (!isAppsScript && !getActiveApiUrl()) {
+    toast('URL API belum dikonfigurasi. Silakan buka Pengaturan API.');
+    showApiConfigModal();
+    return;
+  }
   if (!confirm('Apakah Anda yakin ingin menghapus transaksi ini? File Google Drive tidak akan dihapus.')) return;
   call('deleteTransaction', [id]).then(() => {
     data = data.filter(x => x.id !== id);
     render();
     toast('Transaksi berhasil dihapus.');
   }).catch(error => {
-    console.error('Error saat menghapus transaksi:', error);
-    toast('Gagal menghapus data. Silakan coba lagi.');
+    toast(error && error.message ? error.message : 'Gagal menghapus data. Silakan coba lagi.');
   });
 }
 
@@ -635,20 +765,34 @@ function saveApiUrl() {
 }
 
 function load() {
+  if (!isAppsScript && !getActiveApiUrl()) {
+    isLoading = false;
+    loadError = null;
+    data = [];
+    banks = [];
+    render();
+    return;
+  }
+  isLoading = true;
+  loadError = null;
+  render();
   Promise.all([call('getData'), call('getBanks')]).then(values => {
     data = values[0] || [];
     banks = values[1] || [];
+    isLoading = false;
+    loadError = null;
     render();
   }).catch(error => {
+    isLoading = false;
+    loadError = error && error.message ? error.message : 'Gagal terhubung ke server.';
     render();
-    console.error('Error memuat data:', error);
     toast('Gagal terhubung ke server.');
-    if (!isAppsScript && !getActiveApiUrl()) {
-      showApiConfigModal();
-    }
   });
 }
 
+// 1. Tampilkan UI seketika saat halaman dibuka tanpa menunggu backend
+render();
+// 2. Muat data dari backend di latar belakang
 load();
 </script>
 </body>
