@@ -1,7 +1,7 @@
 const SPREADSHEET_ID = '1L8cu2jbefLBlrxbRFYvEqPUSjPd7_8xsx8Ssm70wfGs';
 const SHEET_NAME = 'Transaksi';
 const BANK_SHEET_NAME = 'Bank';
-const DRIVE_FOLDER_ID = '1AlsC2ZLYSKi7E5Yf2VeccyXK1Y5NSCyC';
+const DRIVE_FOLDER_ID = '11yUGFN2o_8ikfkyi6z0izxRT_RhyJklj';
 
 const HEADERS = [
   'ID', 'No Transaksi', 'Nama Bank', 'Tanggal Transaksi', 'Keterangan', 'Jumlah Transaksi',
