@@ -14,7 +14,7 @@ function doGet(e) {
     return handleApiRequest_(e.parameter.action, e.parameter);
   }
   try {
-    return HtmlService.createHtmlOutputFromFile('index')
+    return HtmlService.createHtmlOutputFromFile('Index')
       .setTitle('Verifikasi Filling')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   } catch (err) {
