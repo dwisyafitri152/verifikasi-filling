@@ -4,7 +4,7 @@ const BANK_SHEET_NAME = 'Bank';
 const DRIVE_FOLDER_ID = '1AlsC2ZLYSKi7E5Yf2VeccyXK1Y5NSCyC';
 
 const HEADERS = [
-  'ID', 'No Transaksi', 'Nama Bank', 'Tanggal Transaksi', 'Jumlah Transaksi',
+  'ID', 'No Transaksi', 'Nama Bank', 'Tanggal Transaksi', 'Keterangan', 'Jumlah Transaksi',
   'Bukti Pengajuan', 'Bukti Bayar', 'Invoice', 'Status Bukti',
   'Link Bukti Pengajuan', 'Link Bukti Bayar', 'Link Invoice', 'Created At', 'Updated At'
 ];
@@ -172,11 +172,16 @@ function getTransactionSheet_() {
 }
 
 function ensureHeaders_(sheet) {
-  const current = sheet.getRange(1, 1, 1, HEADERS.length).getValues()[0];
-  if (HEADERS.some((header, index) => String(current[index] || '').trim() !== header)) {
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    sheet.setFrozenRows(1);
+  const lastCol = sheet.getLastColumn();
+  if (lastCol > 0) {
+    const current = sheet.getRange(1, 1, 1, Math.max(lastCol, HEADERS.length)).getValues()[0];
+    const hasKeterangan = current.some(h => String(h || '').trim().toLowerCase() === 'keterangan');
+    if (!hasKeterangan) {
+      sheet.insertColumnAfter(4);
+    }
   }
+  sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+  sheet.setFrozenRows(1);
 }
 
 function validateTransactionPayload_(payload) {
@@ -184,6 +189,7 @@ function validateTransactionPayload_(payload) {
   const noTransaksi = String(payload.noTransaksi || '').trim();
   const namaBank = String(payload.namaBank || '').trim();
   const tanggalTransaksi = String(payload.tanggalTransaksi || '').trim();
+  const keterangan = String(payload.keterangan || '').trim();
   const jumlahTransaksi = Number(payload.jumlahTransaksi);
   if (!noTransaksi) throw new Error('No transaksi wajib diisi.');
   if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]{1,79}$/.test(noTransaksi)) throw new Error('No transaksi mengandung karakter yang tidak aman.');
@@ -193,7 +199,7 @@ function validateTransactionPayload_(payload) {
   const banks = getBanks();
   if (banks.length && banks.indexOf(namaBank) === -1) throw new Error('Nama bank tidak tersedia pada sheet Bank.');
   ['buktiPengajuan', 'buktiBayar', 'invoice'].forEach(key => validateDocument_(payload[key], key));
-  return { noTransaksi, namaBank, tanggalTransaksi, jumlahTransaksi, buktiPengajuan: payload.buktiPengajuan || null, buktiBayar: payload.buktiBayar || null, invoice: payload.invoice || null };
+  return { noTransaksi, namaBank, tanggalTransaksi, keterangan, jumlahTransaksi, buktiPengajuan: payload.buktiPengajuan || null, buktiBayar: payload.buktiBayar || null, invoice: payload.invoice || null };
 }
 
 function validateDocument_(document, key) {
@@ -283,18 +289,64 @@ function documentFolderName_(key) { return ({ buktiPengajuan: 'Bukti Pengajuan',
 function sanitizeFileName_(name) { return String(name || 'dokumen').replace(/[\\/:*?"<>|#%]/g, '_').slice(0, 180); }
 
 function createTransactionObject_(id, input, docs, createdAt, updatedAt) {
-  return { id, noTransaksi: input.noTransaksi, namaBank: input.namaBank, tanggalTransaksi: input.tanggalTransaksi, jumlahTransaksi: input.jumlahTransaksi, buktiPengajuan: docs.buktiPengajuan, buktiBayar: docs.buktiBayar, invoice: docs.invoice, statusBukti: calculateStatus([docs.buktiPengajuan, docs.buktiBayar, docs.invoice]), createdAt: createdAt instanceof Date ? createdAt.toISOString() : String(createdAt), updatedAt: updatedAt instanceof Date ? updatedAt.toISOString() : String(updatedAt) };
+  return { id, noTransaksi: input.noTransaksi, namaBank: input.namaBank, tanggalTransaksi: input.tanggalTransaksi, keterangan: input.keterangan || '', jumlahTransaksi: input.jumlahTransaksi, buktiPengajuan: docs.buktiPengajuan, buktiBayar: docs.buktiBayar, invoice: docs.invoice, statusBukti: calculateStatus([docs.buktiPengajuan, docs.buktiBayar, docs.invoice]), createdAt: createdAt instanceof Date ? createdAt.toISOString() : String(createdAt), updatedAt: updatedAt instanceof Date ? updatedAt.toISOString() : String(updatedAt) };
 }
 
 function transactionToRow_(transaction) {
-  return [transaction.id, transaction.noTransaksi, transaction.namaBank, transaction.tanggalTransaksi, transaction.jumlahTransaksi, documentName_(transaction.buktiPengajuan), documentName_(transaction.buktiBayar), documentName_(transaction.invoice), transaction.statusBukti, documentUrl_(transaction.buktiPengajuan), documentUrl_(transaction.buktiBayar), documentUrl_(transaction.invoice), transaction.createdAt, transaction.updatedAt];
+  return [transaction.id, transaction.noTransaksi, transaction.namaBank, transaction.tanggalTransaksi, transaction.keterangan || '', transaction.jumlahTransaksi, documentName_(transaction.buktiPengajuan), documentName_(transaction.buktiBayar), documentName_(transaction.invoice), transaction.statusBukti, documentUrl_(transaction.buktiPengajuan), documentUrl_(transaction.buktiBayar), documentUrl_(transaction.invoice), transaction.createdAt, transaction.updatedAt];
 }
 function documentName_(document) { return document ? document.fileName || document.name || '' : ''; }
 function documentUrl_(document) { return document ? document.fileUrl || document.url || '' : ''; }
 
 function rowToTransaction_(row) {
   const makeDocument = (name, url) => (name || url) ? { fileId: extractDriveId_(url), fileName: String(name || 'Link Google Drive'), fileUrl: String(url || '') } : null;
-  return { id: String(row[0]), noTransaksi: String(row[1]), namaBank: String(row[2]), tanggalTransaksi: formatDateInput_(row[3]), jumlahTransaksi: Number(row[4]) || 0, buktiPengajuan: makeDocument(row[5], row[9]), buktiBayar: makeDocument(row[6], row[10]), invoice: makeDocument(row[7], row[11]), statusBukti: String(row[8] || calculateStatus([row[5], row[6], row[7]])), createdAt: toIso_(row[12]), updatedAt: toIso_(row[13]) };
+  let keterangan = '';
+  let jumlahTransaksi = 0;
+  let docPengajuanName = '', docBayarName = '', invoiceName = '';
+  let statusBukti = '';
+  let docPengajuanUrl = '', docBayarUrl = '', invoiceUrl = '';
+  let createdAt = '', updatedAt = '';
+
+  if (row.length >= 15 || (isNaN(Number(row[4])) && !isNaN(Number(row[5])))) {
+    keterangan = String(row[4] || '');
+    jumlahTransaksi = Number(row[5]) || 0;
+    docPengajuanName = row[6];
+    docBayarName = row[7];
+    invoiceName = row[8];
+    statusBukti = String(row[9] || calculateStatus([row[6], row[7], row[8]]));
+    docPengajuanUrl = row[10];
+    docBayarUrl = row[11];
+    invoiceUrl = row[12];
+    createdAt = toIso_(row[13]);
+    updatedAt = toIso_(row[14]);
+  } else {
+    keterangan = '';
+    jumlahTransaksi = Number(row[4]) || 0;
+    docPengajuanName = row[5];
+    docBayarName = row[6];
+    invoiceName = row[7];
+    statusBukti = String(row[8] || calculateStatus([row[5], row[6], row[7]]));
+    docPengajuanUrl = row[9];
+    docBayarUrl = row[10];
+    invoiceUrl = row[11];
+    createdAt = toIso_(row[12]);
+    updatedAt = toIso_(row[13]);
+  }
+
+  return {
+    id: String(row[0]),
+    noTransaksi: String(row[1]),
+    namaBank: String(row[2]),
+    tanggalTransaksi: formatDateInput_(row[3]),
+    keterangan: keterangan,
+    jumlahTransaksi: jumlahTransaksi,
+    buktiPengajuan: makeDocument(docPengajuanName, docPengajuanUrl),
+    buktiBayar: makeDocument(docBayarName, docBayarUrl),
+    invoice: makeDocument(invoiceName, invoiceUrl),
+    statusBukti: statusBukti,
+    createdAt: createdAt,
+    updatedAt: updatedAt
+  };
 }
 function extractDriveId_(url) { const match = String(url || '').match(/[-\w]{20,}/); return match ? match[0] : ''; }
 function formatDateInput_(value) { const date = value instanceof Date ? value : new Date(value); return Utilities.formatDate(date, Session.getScriptTimeZone() || 'Asia/Jakarta', 'yyyy-MM-dd'); }
