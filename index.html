@@ -11,94 +11,125 @@
   <style>
     :root{--navy:#0f172a;--blue:#2563eb;--bg:#f8fafc;--line:#e2e8f0;--text:#162033;--muted:#64748b;--green:#15803d;--amber:#b45309;--red:#b91c1c}
     *{box-sizing:border-box}
+    html,body{width:100%;max-width:100vw;overflow-x:hidden}
     body{margin:0;background:var(--bg);color:var(--text);font:13px Arial,sans-serif}
     button,input,select{font:inherit}
     button{cursor:pointer}
-    .app{min-height:100vh}
-    .sidebar{position:fixed;inset:0 auto 0 0;width:244px;padding:28px 16px;background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column}
-    .brand{display:flex;align-items:center;gap:11px;padding:0 10px 38px}
+    .app{min-height:100vh;display:flex;width:100%}
+    .sidebar{position:fixed;inset:0 auto 0 0;width:244px;padding:24px 16px;background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column;z-index:40;transition:transform .25s ease-in-out}
+    .sidebar-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:35;display:none}
+    .sidebar-overlay.open{display:block}
+    .brand{display:flex;align-items:center;gap:11px;padding:0 10px 32px}
     .brand-icon{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:#2563eb;color:#fff;font-size:20px}
     .brand strong{display:block;color:#fff;letter-spacing:2px;font-size:14px}
     .brand small{color:#38bdf8;letter-spacing:3px}
     .side-label{padding:0 11px 10px;color:#64748b;font-size:10px;letter-spacing:2px}
     .nav{display:grid;gap:6px}
-    .nav button{border:0;border-radius:9px;padding:12px;color:#94a3b8;background:transparent;text-align:left}
+    .nav button{border:0;border-radius:9px;padding:12px;color:#94a3b8;background:transparent;text-align:left;display:flex;align-items:center;gap:8px}
     .nav button.active,.nav button:hover{color:#fff;background:#1e293b;box-shadow:inset 3px 0 #38bdf8}
-    .side-bottom{margin-top:auto}
-    .secure,.user{border-top:1px solid #1e293b;padding:13px 8px;color:#94a3b8;font-size:10px}
-    .secure{border:1px solid #1e293b;border-radius:9px}
-    .secure b,.user b{color:#cbd5e1}
-    .user{display:flex;gap:8px;margin-top:17px}
-    .avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#164e63;color:#e0f2fe}
-    .main{margin-left:244px;min-height:100vh}
-    .topbar{height:76px;padding:0 36px;display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--line)}
+    .side-bottom{margin-top:auto;display:grid;gap:10px}
+    .user{border-top:1px solid #1e293b;padding:14px 8px 4px;color:#94a3b8;font-size:11px;display:flex;align-items:center;gap:10px}
+    .user b{color:#cbd5e1}
+    .btn-api-cfg{border:1px solid #334155;border-radius:8px;background:#1e293b;color:#94a3b8;padding:8px 10px;font-size:11px;text-align:left;display:flex;align-items:center;gap:6px;cursor:pointer}
+    .btn-api-cfg:hover{color:#fff;background:#334155}
+    .main{margin-left:244px;min-height:100vh;flex:1;width:calc(100% - 244px);display:flex;flex-direction:column}
+    .topbar{height:76px;padding:0 36px;display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+    .topbar-left{display:flex;align-items:center;gap:14px}
+    .menu-toggle{display:none;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);font-size:20px;padding:0}
     .eyebrow,.kicker{font-size:10px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#94a3b8}
-    .topbar h1{margin:5px 0 0;font-size:23px}
+    .topbar h1{margin:4px 0 0;font-size:22px}
     .today{color:var(--muted);font-size:11px}
-    .content{padding:30px 36px}
-    .intro{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px}
-    .intro h2{margin:8px 0 4px;font-size:22px}
+    .content{padding:28px 36px;flex:1}
+    .intro{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;gap:16px}
+    .intro h2{margin:6px 0 4px;font-size:22px}
     .intro p{margin:0;color:var(--muted);font-size:12px}
-    .primary{border:0;border-radius:8px;padding:11px 15px;background:var(--blue);color:white;font-weight:bold}
-    .primary:disabled{opacity:0.6;cursor:not-allowed}
+    .primary{border:0;border-radius:8px;padding:11px 18px;min-height:42px;background:var(--blue);color:white;font-weight:bold;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+    .primary:disabled{opacity:0.65;cursor:not-allowed}
     .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin-bottom:19px}
     .stat,.panel,.table-wrap{border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 3px 12px #0f172a08}
     .stat{padding:16px;min-height:103px}
     .stat small,.stat span{display:block;color:var(--muted);font-size:10px}
-    .stat strong{display:block;margin:10px 0;font-size:21px}
-    .filters{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:13px;margin-bottom:18px}
-    .search{flex:1;max-width:360px}
-    .search input,.filters select,.form input,.form select{border:1px solid var(--line);border-radius:7px;background:#f8fafc;padding:9px 10px;outline:0}
+    .stat strong{display:block;margin:8px 0;font-size:20px}
+    .filters{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px 16px;margin-bottom:18px;flex-wrap:wrap}
+    .search{flex:1;min-width:240px;max-width:360px}
+    .search input,.filters select,.form input,.form select{border:1px solid var(--line);border-radius:7px;background:#f8fafc;padding:9px 11px;outline:0;min-height:38px}
     .search input{width:100%}
-    .filter-list{display:flex;gap:8px;flex-wrap:wrap}
+    .filter-list{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .filter-list label{display:grid;gap:4px;color:#94a3b8;font-size:9px;font-weight:bold}
-    .table-head{display:flex;justify-content:space-between;padding:18px;border-bottom:1px solid #eef2f7}
-    .table-head h3{margin:6px 0 0;font-size:16px}
-    .table-scroll{overflow:auto}
-    table{width:100%;min-width:1000px;border-collapse:collapse}
-    th,td{padding:11px 10px;border-bottom:1px solid #f1f5f9;text-align:left;white-space:nowrap}
-    th{color:#94a3b8;background:#fbfdff;font-size:9px;text-transform:uppercase}
+    .table-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #eef2f7}
+    .table-head h3{margin:4px 0 0;font-size:16px}
+    .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
+    table{width:100%;min-width:980px;border-collapse:collapse}
+    th,td{padding:12px 10px;border-bottom:1px solid #f1f5f9;text-align:left;white-space:nowrap}
+    th{color:#94a3b8;background:#fbfdff;font-size:9px;text-transform:uppercase;letter-spacing:.5px}
     td{font-size:11px;color:#475569}
     .amount{text-align:right}
-    .badge{border-radius:999px;padding:5px 8px;font-size:9px;font-weight:bold}
+    .badge{border-radius:999px;padding:5px 9px;font-size:9px;font-weight:bold;display:inline-block}
     .complete{color:var(--green);background:#dcfce7}
     .partial{color:var(--amber);background:#fef3c7}
     .empty{color:var(--red);background:#fee2e2}
-    .doc{color:var(--blue);text-decoration:none;font-size:10px}
-    .missing{color:#cbd5e1;font-size:10px}
-    .actions{display:flex;gap:5px}
-    .actions button{border:0;border-radius:6px;padding:7px}
+    .doc{color:var(--blue);text-decoration:none;font-size:10px;font-weight:bold}
+    .doc:hover{text-decoration:underline}
+    .missing{color:#94a3b8;font-size:10px}
+    .actions{display:flex;gap:6px}
+    .actions button{border:0;border-radius:6px;padding:7px 9px;min-height:32px;display:inline-flex;align-items:center;justify-content:center}
     .edit{color:var(--blue);background:#eff6ff}
+    .edit:hover{background:#dbeafe}
     .delete{color:var(--red);background:#fef2f2}
-    .footer{display:flex;justify-content:space-between;padding:13px 18px;color:#94a3b8;font-size:10px}
-    .page{border:1px solid var(--line);background:#fff;padding:7px;border-radius:6px}
-    .notice{margin-top:15px;padding:11px;border:1px solid #bae6fd;border-radius:8px;background:#f0f9ff;color:#0369a1;font-size:10px}
-    .empty-state{text-align:center;padding:45px;color:var(--muted)}
-    .modal-bg{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;background:#0f172a88}
-    .modal{width:min(680px,100%);max-height:calc(100vh - 40px);overflow:auto;border-radius:14px;background:white}
-    .modal header{display:flex;justify-content:space-between;padding:22px;border-bottom:1px solid var(--line)}
-    .modal header h2{margin:6px 0;font-size:20px}
-    .close{border:0;background:transparent;font-size:20px;color:var(--muted);cursor:pointer}
-    .form{padding:20px 22px}
+    .delete:hover{background:#fee2e2}
+    .footer{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;color:#94a3b8;font-size:10px}
+    .empty-state{text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;line-height:1.6}
+    .modal-bg{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:#0f172a88;overflow-y:auto}
+    .modal{width:min(680px,96vw);max-height:calc(100vh - 32px);overflow-y:auto;border-radius:14px;background:white;box-shadow:0 20px 40px rgba(15,23,42,.2)}
+    .modal header{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px;border-bottom:1px solid var(--line)}
+    .modal header h2{margin:4px 0 0;font-size:20px}
+    .close{border:0;background:transparent;font-size:24px;line-height:1;color:var(--muted);cursor:pointer;padding:4px}
+    .form{padding:20px 24px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
     .form label{display:grid;gap:6px;color:#475569;font-size:11px;font-weight:bold}
     .form label em{color:red}
-    .docs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
-    .doc-box{padding:11px;border:1px solid var(--line);border-radius:8px;background:#fbfdff}
-    .doc-box h4{margin:0 0 8px;font-size:11px}
-    .doc-box input[type=file]{width:100%;font-size:9px}
+    .docs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+    .doc-box{padding:12px;border:1px solid var(--line);border-radius:8px;background:#fbfdff}
+    .doc-box h4{margin:0 0 8px;font-size:11px;color:#1e293b}
+    .doc-box input[type=file]{width:100%;font-size:10px}
     .doc-box input[type=text]{width:100%;margin-top:4px}
     .doc-sep{text-align:center;font-size:10px;color:#94a3b8;margin:6px 0}
     .doc-label{font-size:10px;color:#64748b;margin-bottom:3px;font-weight:bold}
-    .doc-status{font-size:10px;margin-top:4px;min-height:14px}
-    .doc-current{margin-bottom:8px;padding:5px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;font-size:10px;display:flex;align-items:center;justify-content:space-between;gap:6px}
-    .modal-foot{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;border-top:1px solid var(--line)}
-    .secondary{border:1px solid var(--line);border-radius:7px;padding:9px 13px;background:#fff}
-    .danger{border:0;border-radius:7px;padding:9px 13px;color:white;background:#dc2626}
-    .toast{position:fixed;right:20px;top:20px;z-index:50;padding:13px 16px;border-radius:8px;color:#fff;background:#0f172a;box-shadow:0 10px 25px #0f172a30}
+    .doc-status{font-size:10px;margin-top:5px;min-height:14px}
+    .doc-current{margin-bottom:8px;padding:6px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;font-size:10px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .modal-foot{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-top:1px solid var(--line);gap:12px}
+    .secondary{border:1px solid var(--line);border-radius:7px;padding:10px 16px;min-height:42px;background:#fff;color:var(--text);font-weight:bold}
+    .toast{position:fixed;right:20px;top:20px;z-index:60;padding:13px 18px;border-radius:8px;color:#fff;background:#0f172a;box-shadow:0 10px 25px #0f172a30;max-width:min(400px,90vw);font-size:12px;line-height:1.4}
     .hidden{display:none}
-    @media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr)}.filters{display:block}.search{max-width:none;margin-bottom:12px}}
-    @media(max-width:700px){.sidebar{position:static;width:auto;min-height:auto}.main{margin-left:0}.topbar{padding:0 18px}.content{padding:22px 17px}.stats{grid-template-columns:1fr 1fr}.intro{display:block}.intro .primary{width:100%;margin-top:15px}.docs,.grid{grid-template-columns:1fr}.filter-list{display:grid;grid-template-columns:1fr 1fr}.footer,.modal-foot{display:block}.modal-foot .primary,.modal-foot .secondary{margin-top:10px;width:100%}}
+    @media(max-width:1100px){
+      .stats{grid-template-columns:repeat(3,1fr)}
+      .stat:last-child{grid-column:span 2}
+    }
+    @media(max-width:768px){
+      .sidebar{transform:translateX(-100%)}
+      .sidebar.open{transform:translateX(0);box-shadow:4px 0 25px rgba(0,0,0,0.3)}
+      .main{margin-left:0;width:100%}
+      .topbar{padding:0 16px}
+      .menu-toggle{display:inline-flex}
+      .content{padding:20px 16px}
+      .stats{grid-template-columns:1fr 1fr;gap:10px}
+      .stat:last-child{grid-column:span 2}
+      .intro{flex-direction:column;align-items:stretch}
+      .intro .primary{width:100%;margin-top:10px}
+      .filters{padding:12px;flex-direction:column;align-items:stretch}
+      .search{max-width:none;width:100%;min-width:0}
+      .filter-list{display:grid;grid-template-columns:1fr 1fr;width:100%}
+      .grid{grid-template-columns:1fr}
+      .docs{grid-template-columns:1fr}
+      .modal-foot{flex-direction:column-reverse;align-items:stretch}
+      .modal-foot > div{display:flex;flex-direction:column-reverse;gap:8px;width:100%}
+      .modal-foot button{width:100%}
+      .modal header{padding:16px}
+      .form{padding:16px}
+    }
+    @media(max-width:440px){
+      .filter-list{grid-template-columns:1fr}
+    }
   </style>
 </head>
 <body>
@@ -113,13 +144,13 @@
 // Jika aplikasi dijalankan langsung di dalam Google Apps Script, biarkan kosong.
 const API_URL = '';
 
-const GAS = typeof google !== 'undefined' && google.script && google.script.run;
+const isAppsScript = typeof google !== 'undefined' && Boolean(google.script) && Boolean(google.script.run);
 let data = [], banks = [], filter = { q: '', month: '0', year: 'all', bank: 'all', status: 'all' }, editing = null;
 let pendingFiles = {}, removedDocs = {};
+let isSidebarOpen = false;
 
 const $ = id => document.getElementById(id);
 const rupiah = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
-const status = docs => { const n = docs.filter(Boolean).length; return n === 3 ? 'BUKTI LENGKAP' : n ? 'SEBAGIAN LENGKAP' : 'TIDAK ADA BUKTI'; };
 const toast = message => {
   const el = $('toast');
   if (!el) return;
@@ -134,14 +165,16 @@ function getActiveApiUrl() {
 }
 
 function call(name, args = []) {
-  if (GAS) {
+  if (isAppsScript) {
     return new Promise((resolve, reject) => {
-      GAS.withSuccessHandler(resolve).withFailureHandler(error => reject(error))[name](...args);
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(error => reject(error))[name](...args);
     });
   }
   const url = getActiveApiUrl();
   if (!url) {
-    return Promise.reject(new Error('API_URL belum dikonfigurasi. Untuk GitHub Pages, atur URL Web App Google Apps Script pada variabel API_URL di index.html atau gunakan menu konfigurasi API.'));
+    return Promise.reject(new Error('URL Backend API belum dikonfigurasi. Silakan tentukan URL Web App pada menu Konfigurasi API.'));
   }
   return fetch(url, {
     method: 'POST',
@@ -153,9 +186,17 @@ function call(name, args = []) {
       return res.json();
     })
     .then(res => {
-      if (!res.success) throw new Error(res.error || 'Terjadi kesalahan pada server backend.');
+      if (!res.success) throw new Error(res.error || 'Terjadi kesalahan pada backend.');
       return res.data;
     });
+}
+
+function toggleSidebar(forcedState) {
+  isSidebarOpen = forcedState !== undefined ? forcedState : !isSidebarOpen;
+  const sb = $('sidebar');
+  const ov = $('sidebar-overlay');
+  if (sb) sb.classList.toggle('open', isSidebarOpen);
+  if (ov) ov.classList.toggle('open', isSidebarOpen);
 }
 
 function render() {
@@ -170,28 +211,32 @@ function render() {
 
   const total = filtered.reduce((s, t) => s + Number(t.jumlahTransaksi), 0);
 
-  const noticeText = GAS 
-    ? 'ⓘ Mode Google Apps Script aktif — upload file akan disimpan ke Google Drive sesuai struktur tahun, bulan, transaksi, dan jenis dokumen.'
-    : `ⓘ Mode GitHub Pages aktif — terhubung ke Google Apps Script backend.${!GAS ? ' <a href="javascript:void(0)" onclick="showApiConfigModal()" style="color:#0284c7;text-decoration:underline;margin-left:8px;font-weight:bold;">Ubah API URL</a>' : ''}`;
-
   $('app').innerHTML = `
-    <aside class="sidebar">
+    <div id="sidebar-overlay" class="sidebar-overlay ${isSidebarOpen ? 'open' : ''}" onclick="toggleSidebar(false)"></div>
+    <aside id="sidebar" class="sidebar ${isSidebarOpen ? 'open' : ''}">
       <div class="brand">
         <div class="brand-icon">✓</div>
         <div><strong>VERIFIKASI</strong><small>FILLING</small></div>
       </div>
       <div class="side-label">WORKSPACE</div>
       <div class="nav">
-        <button class="active">▦ &nbsp; Dashboard</button>
+        <button class="active" onclick="toggleSidebar(false)">▦ &nbsp; Dashboard</button>
       </div>
       <div class="side-bottom">
-        <div class="secure">▣ &nbsp; <b>Google Workspace</b><br>Data terhubung ke Sheet & Drive</div>
+        ${!isAppsScript ? `
+          <button type="button" class="btn-api-cfg" onclick="showApiConfigModal()">
+            ⚙ <span>Pengaturan API</span>
+          </button>
+        ` : ''}
         <div class="user">◉ <span><b>Finance & Accounting</b><br>Workspace aktif</span></div>
       </div>
     </aside>
     <main class="main">
       <header class="topbar">
-        <div><div class="eyebrow">FINANCE CONTROL DESK</div><h1>Dashboard</h1></div>
+        <div class="topbar-left">
+          <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Buka Menu">☰</button>
+          <div><div class="eyebrow">FINANCE CONTROL DESK</div><h1>Dashboard</h1></div>
+        </div>
         <div class="today">▣ &nbsp; ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date())}</div>
       </header>
       <div class="content">
@@ -204,11 +249,11 @@ function render() {
           <button class="primary" onclick="openForm()">＋ Tambah Transaksi</button>
         </div>
         <section class="stats">
-          ${stat('Total Transaksi', filtered.length, 'Semua transaksi', 'blue')}
-          ${stat('Bukti Lengkap', filtered.filter(t => t.statusBukti === 'BUKTI LENGKAP').length, 'sudah terverifikasi', 'green')}
-          ${stat('Sebagian Lengkap', filtered.filter(t => t.statusBukti === 'SEBAGIAN LENGKAP').length, 'perlu tindak lanjut', 'amber')}
-          ${stat('Tidak Ada Bukti', filtered.filter(t => t.statusBukti === 'TIDAK ADA BUKTI').length, 'segera lengkapi', 'red')}
-          ${stat('Total Nilai Transaksi', rupiah(total), 'mengikuti filter aktif', 'navy')}
+          ${stat('Total Transaksi', filtered.length, 'Semua transaksi')}
+          ${stat('Bukti Lengkap', filtered.filter(t => t.statusBukti === 'BUKTI LENGKAP').length, 'sudah terverifikasi')}
+          ${stat('Sebagian Lengkap', filtered.filter(t => t.statusBukti === 'SEBAGIAN LENGKAP').length, 'perlu tindak lanjut')}
+          ${stat('Tidak Ada Bukti', filtered.filter(t => t.statusBukti === 'TIDAK ADA BUKTI').length, 'segera lengkapi')}
+          ${stat('Total Nilai Transaksi', rupiah(total), 'mengikuti filter aktif')}
         </section>
         <section class="panel filters">
           <div class="search">⌕ <input placeholder="Cari No Transaksi atau Nama Bank..." value="${filter.q}" oninput="filter.q=this.value.toLowerCase();render()"></div>
@@ -247,17 +292,16 @@ function render() {
           </div>
           ${filtered.length ? '' : '<div class="empty-state">Belum ada transaksi yang cocok.<br>Ubah filter atau tambahkan transaksi baru.</div>'}
           <div class="footer">
-            <span>Menampilkan semua data terfilter</span>
-            <span>Google Sheets sebagai database</span>
+            <span>Menampilkan data terfilter</span>
+            <span>Sistem Verifikasi Dokumen</span>
           </div>
         </section>
-        <div class="notice">${noticeText}</div>
       </div>
     </main>
   `;
 }
 
-function stat(label, value, note, tone) {
+function stat(label, value, note) {
   return `<article class="stat"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`;
 }
 
@@ -318,15 +362,18 @@ function openForm(id) {
   removedDocs = {};
   const t = editing || { noTransaksi: '', namaBank: '', tanggalTransaksi: '', jumlahTransaksi: '', buktiPengajuan: null, buktiBayar: null, invoice: null };
 
-  $('app').insertAdjacentHTML('beforeend', `
-    <div class="modal-bg" id="modal">
+  const prevModal = $('modal');
+  if (prevModal) prevModal.remove();
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-bg" id="modal" onclick="if(event.target===this)closeModal()">
       <div class="modal">
         <header>
           <div>
             <div class="eyebrow">${editing ? 'PERBARUI DATA' : 'DATA TRANSAKSI BARU'}</div>
             <h2>${editing ? 'Edit transaksi' : 'Tambah transaksi'}</h2>
           </div>
-          <button class="close" onclick="closeModal()">×</button>
+          <button class="close" type="button" onclick="closeModal()">×</button>
         </header>
         <form class="form" onsubmit="save(event)">
           <div class="grid">
@@ -341,10 +388,10 @@ function openForm(id) {
             ${docForm('invoice', 'Invoice', t.invoice)}
           </div>
           <div class="modal-foot">
-            <span>Status dihitung otomatis</span>
-            <div>
+            <span style="font-size:11px;color:var(--muted)">Status dihitung otomatis</span>
+            <div style="display:flex;gap:8px;">
               <button type="button" class="secondary" onclick="closeModal()">Batal</button>
-              <button type="submit" class="primary" id="btn-save">Simpan Transaksi</button>
+              <button type="submit" class="primary" id="btn-save">Simpan</button>
             </div>
           </div>
         </form>
@@ -364,9 +411,9 @@ function docForm(key, label, doc) {
       ${hasDoc ? `
         <div class="doc-current" id="${key}-current">
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;" title="${docName}">
-            📄 <a class="doc" href="${docUrl}" target="_blank" style="font-weight:bold;">${docName}</a>
+            📄 <a class="doc" href="${docUrl}" target="_blank">${docName}</a>
           </span>
-          <button type="button" onclick="removeDoc('${key}')" style="border:0;background:transparent;color:var(--red);font-size:11px;padding:0 4px;font-weight:bold;cursor:pointer;" title="Hapus dokumen">✕</button>
+          <button type="button" onclick="removeDoc('${key}')" style="border:0;background:transparent;color:var(--red);font-size:12px;padding:0 4px;font-weight:bold;cursor:pointer;" title="Hapus dokumen">✕</button>
         </div>
       ` : ''}
       <div class="doc-label">Upload Dokumen</div>
@@ -451,14 +498,23 @@ function closeModal() {
 
 function save(event) {
   event.preventDefault();
+  const noTransaksi = $('f-no').value.trim();
+  const namaBank = $('f-bank').value.trim();
+  const tanggalTransaksi = $('f-date').value.trim();
+  const jumlahTransaksi = Number($('f-amount').value);
+
+  if (!noTransaksi || !namaBank || !tanggalTransaksi || !jumlahTransaksi) {
+    toast('Mohon lengkapi semua field yang wajib diisi.');
+    return;
+  }
+
   const payload = {
-    noTransaksi: $('f-no').value.trim(),
-    namaBank: $('f-bank').value.trim(),
-    tanggalTransaksi: $('f-date').value.trim(),
-    jumlahTransaksi: Number($('f-amount').value)
+    noTransaksi: noTransaksi,
+    namaBank: namaBank,
+    tanggalTransaksi: tanggalTransaksi,
+    jumlahTransaksi: jumlahTransaksi
   };
 
-  let hasFileUpload = false;
   ['buktiPengajuan', 'buktiBayar', 'invoice'].forEach(key => {
     const fileData = pendingFiles[key];
     const linkVal = $(key + '-link') ? $(key + '-link').value.trim() : '';
@@ -469,7 +525,6 @@ function save(event) {
         mimeType: fileData.mimeType,
         base64: fileData.base64
       };
-      hasFileUpload = true;
     } else if (linkVal) {
       payload[key] = {
         url: linkVal,
@@ -487,11 +542,7 @@ function save(event) {
   const saveBtn = $('btn-save');
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.textContent = hasFileUpload ? 'Uploading...' : 'Menyimpan...';
-  }
-
-  if (hasFileUpload) {
-    toast('Uploading...');
+    saveBtn.textContent = 'Menyimpan...';
   }
 
   const fn = editing ? 'updateTransaction' : 'addTransaction';
@@ -505,57 +556,55 @@ function save(event) {
     }
     closeModal();
     render();
-    toast(hasFileUpload ? 'Upload berhasil' : 'Transaksi berhasil disimpan.');
+    toast('Data berhasil disimpan.');
   }).catch(error => {
     if (saveBtn) {
       saveBtn.disabled = false;
-      saveBtn.textContent = 'Simpan Transaksi';
+      saveBtn.textContent = 'Simpan';
     }
-    const msg = error.message || String(error);
-    if (hasFileUpload) {
-      toast('Upload gagal, silakan coba lagi. ' + msg);
-    } else {
-      toast(msg);
-    }
+    console.error('Error saat menyimpan transaksi:', error);
+    toast(error.message || 'Gagal menyimpan data. Silakan coba lagi.');
   });
 }
 
 function confirmDelete(id) {
-  const t = data.find(x => x.id === id);
   if (!confirm('Apakah Anda yakin ingin menghapus transaksi ini? File Google Drive tidak akan dihapus.')) return;
   call('deleteTransaction', [id]).then(() => {
     data = data.filter(x => x.id !== id);
     render();
     toast('Transaksi berhasil dihapus.');
-  }).catch(error => toast(error.message || String(error)));
+  }).catch(error => {
+    console.error('Error saat menghapus transaksi:', error);
+    toast('Gagal menghapus data. Silakan coba lagi.');
+  });
 }
 
 function showApiConfigModal() {
   const currentUrl = getActiveApiUrl();
-  $('app').insertAdjacentHTML('beforeend', `
-    <div class="modal-bg" id="api-modal">
+  const prevModal = $('api-modal');
+  if (prevModal) prevModal.remove();
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-bg" id="api-modal" onclick="if(event.target===this)closeApiModal()">
       <div class="modal" style="max-width:520px;">
         <header>
           <div>
-            <div class="eyebrow">PENGATURAN GITHUB PAGES</div>
+            <div class="eyebrow">PENGATURAN API</div>
             <h2>Konfigurasi Backend API</h2>
           </div>
-          <button class="close" onclick="closeApiModal()">×</button>
+          <button class="close" type="button" onclick="closeApiModal()">×</button>
         </header>
         <div class="form">
           <p style="margin:0 0 14px;color:var(--muted);font-size:12px;line-height:1.5">
-            Untuk menjalankan frontend ini di GitHub Pages, masukkan URL Web App Google Apps Script hasil Deployment (Deploy as Web App, Access: Anyone).
+            Masukkan URL Web App Google Apps Script backend Anda (hasil Deploy as Web App dengan akses Anyone):
           </p>
           <label style="margin-bottom:14px;">
             URL Web App Google Apps Script (/exec) <em>*</em>
             <input id="cfg-api-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" value="${currentUrl}" style="width:100%;">
           </label>
-          <div style="font-size:10px;color:#64748b;line-height:1.4;background:#f8fafc;padding:10px;border-radius:7px;border:1px solid var(--line);">
-            💡 <b>Tips:</b> Anda juga dapat langsung mengisi variabel <code>const API_URL = '...';</code> pada bagian atas script di file <code>index.html</code>.
-          </div>
           <div class="modal-foot" style="padding:14px 0 0;margin-top:16px;">
             <span></span>
-            <div>
+            <div style="display:flex;gap:8px;">
               <button type="button" class="secondary" onclick="closeApiModal()">Tutup</button>
               <button type="button" class="primary" onclick="saveApiUrl()">Simpan & Hubungkan</button>
             </div>
@@ -581,7 +630,7 @@ function saveApiUrl() {
   }
   localStorage.setItem('VERIFIKASI_API_URL', val);
   closeApiModal();
-  toast('API URL disimpan. Memuat data...');
+  toast('URL API disimpan. Memuat data...');
   load();
 }
 
@@ -592,8 +641,9 @@ function load() {
     render();
   }).catch(error => {
     render();
-    toast(error.message || String(error));
-    if (!GAS && !getActiveApiUrl()) {
+    console.error('Error memuat data:', error);
+    toast('Gagal terhubung ke server.');
+    if (!isAppsScript && !getActiveApiUrl()) {
       showApiConfigModal();
     }
   });
