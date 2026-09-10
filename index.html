@@ -3,71 +3,86 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Verifikasi Filling</title>
-  <meta name="description" content="Aplikasi verifikasi kelengkapan dokumen transaksi keuangan dengan integrasi Google Sheets dan Google Drive.">
-  <meta property="og:title" content="Verifikasi Filling">
-  <meta property="og:description" content="Aplikasi verifikasi kelengkapan dokumen transaksi keuangan dengan integrasi Google Sheets dan Google Drive.">
+  <title>PATRIA MENARA ABADI - Verifikasi Filling</title>
+  <meta name="description" content="Aplikasi verifikasi kelengkapan dokumen transaksi keuangan PATRIA MENARA ABADI dengan integrasi Google Sheets dan Google Drive.">
+  <meta property="og:title" content="PATRIA MENARA ABADI - Verifikasi Filling">
+  <meta property="og:description" content="Aplikasi verifikasi kelengkapan dokumen transaksi keuangan PATRIA MENARA ABADI dengan integrasi Google Sheets dan Google Drive.">
   <meta property="og:type" content="website">
+  <!-- Library Pendukung: SheetJS (Excel) & jsPDF + AutoTable (PDF) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
   <style>
-    :root{--navy:#0f172a;--blue:#2563eb;--bg:#f8fafc;--line:#e2e8f0;--text:#162033;--muted:#64748b;--green:#15803d;--amber:#b45309;--red:#b91c1c}
+    :root{--navy:#0f172a;--navy-light:#1e293b;--blue:#2563eb;--blue-light:#3b82f6;--bg:#f8fafc;--line:#e2e8f0;--text:#162033;--muted:#64748b;--green:#15803d;--green-bg:#dcfce7;--amber:#b45309;--amber-bg:#fef3c7;--red:#b91c1c;--red-bg:#fee2e2}
     *{box-sizing:border-box}
     html,body{width:100%;max-width:100vw;overflow-x:hidden}
     body{margin:0;background:var(--bg);color:var(--text);font:13px Arial,sans-serif}
-    button,input,select{font:inherit}
+    button,input,select,textarea{font:inherit}
     button{cursor:pointer}
     .app{min-height:100vh;display:flex;width:100%}
-    .sidebar{position:fixed;inset:0 auto 0 0;width:244px;padding:24px 16px;background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column;z-index:40;transition:transform .25s ease-in-out}
+    .sidebar{position:fixed;inset:0 auto 0 0;width:254px;padding:24px 16px;background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column;z-index:40;transition:transform .25s ease-in-out;overflow-y:auto}
     .sidebar-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:35;display:none}
     .sidebar-overlay.open{display:block}
-    .brand{display:flex;align-items:center;gap:11px;padding:0 10px 32px}
-    .brand-icon{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:#2563eb;color:#fff;font-size:20px}
-    .brand strong{display:block;color:#fff;letter-spacing:2px;font-size:14px}
-    .brand small{color:#38bdf8;letter-spacing:3px}
-    .side-label{padding:0 11px 10px;color:#64748b;font-size:10px;letter-spacing:2px}
-    .nav{display:grid;gap:6px}
-    .nav button{border:0;border-radius:9px;padding:12px;color:#94a3b8;background:transparent;text-align:left;display:flex;align-items:center;gap:8px}
-    .nav button.active,.nav button:hover{color:#fff;background:#1e293b;box-shadow:inset 3px 0 #38bdf8}
-    .side-bottom{margin-top:auto;display:grid;gap:10px}
+    .brand{display:flex;align-items:center;gap:11px;padding:0 8px 24px;border-bottom:1px solid #1e293b}
+    .brand-icon{width:38px;height:38px;min-width:38px;border-radius:11px;display:grid;place-items:center;background:#2563eb;color:#fff;font-size:20px}
+    .brand strong{display:block;color:#fff;letter-spacing:0.5px;font-size:12px;line-height:1.2}
+    .brand small{color:#38bdf8;letter-spacing:1.5px;font-size:9px}
+    .side-section{margin-top:20px}
+    .side-label{padding:0 8px 8px;color:#64748b;font-size:10px;letter-spacing:1.5px;font-weight:bold;text-transform:uppercase}
+    .nav{display:grid;gap:4px}
+    .nav button{border:0;border-radius:8px;padding:10px 12px;color:#94a3b8;background:transparent;text-align:left;display:flex;align-items:center;gap:10px;font-weight:bold;font-size:11.5px;transition:all .15s ease;width:100%}
+    .nav button .nav-icon{font-size:15px;display:inline-block;width:18px;text-align:center}
+    .nav button.active,.nav button:hover{color:#fff;background:#1e293b}
+    .nav button.active{box-shadow:inset 3px 0 #38bdf8;color:#38bdf8}
+    .nav button.sub-active{color:#fff;background:#2563eb26;box-shadow:inset 3px 0 #38bdf8}
+    .side-bottom{margin-top:auto;padding-top:20px;display:grid;gap:10px}
     .user{border-top:1px solid #1e293b;padding:14px 8px 4px;color:#94a3b8;font-size:11px;display:flex;align-items:center;gap:10px}
     .user b{color:#cbd5e1}
-    .btn-api-cfg{border:1px solid #334155;border-radius:8px;background:#1e293b;color:#94a3b8;padding:8px 10px;font-size:11px;text-align:left;display:flex;align-items:center;gap:6px;cursor:pointer}
-    .btn-api-cfg:hover{color:#fff;background:#334155}
-    .main{margin-left:244px;min-height:100vh;flex:1;width:calc(100% - 244px);display:flex;flex-direction:column}
+    .main{margin-left:254px;min-height:100vh;flex:1;width:calc(100% - 254px);display:flex;flex-direction:column}
     .topbar{height:76px;padding:0 36px;display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
     .topbar-left{display:flex;align-items:center;gap:14px}
     .menu-toggle{display:none;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);font-size:20px;padding:0}
-    .eyebrow,.kicker{font-size:10px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#94a3b8}
-    .topbar h1{margin:4px 0 0;font-size:22px}
+    .eyebrow,.kicker{font-size:10px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#94a3b8}
+    .topbar h1{margin:4px 0 0;font-size:20px;letter-spacing:0.3px;color:var(--navy)}
     .today{color:var(--muted);font-size:11px}
     .content{padding:28px 36px;flex:1}
-    .intro{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;gap:16px}
-    .intro h2{margin:6px 0 4px;font-size:22px}
+    .intro{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;gap:16px;flex-wrap:wrap}
+    .intro h2{margin:6px 0 4px;font-size:22px;color:var(--navy)}
     .intro p{margin:0;color:var(--muted);font-size:12px}
-    .primary{border:0;border-radius:8px;padding:11px 18px;min-height:42px;background:var(--blue);color:white;font-weight:bold;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+    .action-buttons{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .primary{border:0;border-radius:8px;padding:10px 16px;min-height:40px;background:var(--blue);color:white;font-weight:bold;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .15s ease}
+    .primary:hover{background:#1d4ed8}
     .primary:disabled{opacity:0.65;cursor:not-allowed}
+    .btn-action{border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-height:40px;background:#fff;color:var(--text);font-weight:bold;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all .15s ease}
+    .btn-action:hover{background:#f1f5f9;border-color:#cbd5e1}
+    .btn-excel{color:#15803d;border-color:#bbf7d0;background:#f0fdf4}
+    .btn-excel:hover{background:#dcfce7;border-color:#86efac}
+    .btn-pdf{color:#b91c1c;border-color:#fecaca;background:#fef2f2}
+    .btn-pdf:hover{background:#fee2e2;border-color:#fca5a5}
     .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:13px;margin-bottom:19px}
     .stat,.panel,.table-wrap{border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 3px 12px #0f172a08}
     .stat{padding:16px;min-height:103px}
     .stat small,.stat span{display:block;color:var(--muted);font-size:10px}
-    .stat strong{display:block;margin:8px 0;font-size:20px}
+    .stat strong{display:block;margin:8px 0;font-size:20px;color:var(--navy)}
     .filters{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px 16px;margin-bottom:18px;flex-wrap:wrap}
-    .search{flex:1;min-width:240px;max-width:360px}
+    .search{flex:1;min-width:240px;max-width:380px}
     .search input,.filters select,.form input,.form select{border:1px solid var(--line);border-radius:7px;background:#f8fafc;padding:9px 11px;outline:0;min-height:38px}
     .search input{width:100%}
     .filter-list{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .filter-list label{display:grid;gap:4px;color:#94a3b8;font-size:9px;font-weight:bold}
     .table-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #eef2f7}
-    .table-head h3{margin:4px 0 0;font-size:16px}
+    .table-head h3{margin:4px 0 0;font-size:16px;color:var(--navy)}
     .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
-    table{width:100%;min-width:1040px;border-collapse:collapse}
+    table{width:100%;min-width:1060px;border-collapse:collapse}
     th,td{padding:12px 10px;border-bottom:1px solid #f1f5f9;text-align:left;white-space:nowrap}
     th{color:#94a3b8;background:#fbfdff;font-size:9px;text-transform:uppercase;letter-spacing:.5px}
     td{font-size:11px;color:#475569}
-    .amount{text-align:right}
-    .badge{border-radius:999px;padding:5px 9px;font-size:9px;font-weight:bold;display:inline-block}
-    .complete{color:var(--green);background:#dcfce7}
-    .partial{color:var(--amber);background:#fef3c7}
-    .empty{color:var(--red);background:#fee2e2}
+    .amount{text-align:right;font-weight:bold;color:#1e293b}
+    .badge{border-radius:999px;padding:4px 9px;font-size:9px;font-weight:bold;display:inline-block}
+    .complete{color:var(--green);background:var(--green-bg)}
+    .partial{color:var(--amber);background:var(--amber-bg)}
+    .empty{color:var(--red);background:var(--red-bg)}
+    .badge-gray{color:#475569;background:#f1f5f9;border:1px solid #e2e8f0}
     .doc{color:var(--blue);text-decoration:none;font-size:10px;font-weight:bold}
     .doc:hover{text-decoration:underline}
     .missing{color:#94a3b8;font-size:10px}
@@ -78,11 +93,11 @@
     .delete{color:var(--red);background:#fef2f2}
     .delete:hover{background:#fee2e2}
     .footer{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;color:#94a3b8;font-size:10px}
-    .empty-state{text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;line-height:1.6}
     .modal-bg{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:#0f172a88;overflow-y:auto}
     .modal{width:min(680px,96vw);max-height:calc(100vh - 32px);overflow-y:auto;border-radius:14px;background:white;box-shadow:0 20px 40px rgba(15,23,42,.2)}
+    .modal-lg{width:min(960px,96vw)}
     .modal header{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px;border-bottom:1px solid var(--line)}
-    .modal header h2{margin:4px 0 0;font-size:20px}
+    .modal header h2{margin:4px 0 0;font-size:20px;color:var(--navy)}
     .close{border:0;background:transparent;font-size:24px;line-height:1;color:var(--muted);cursor:pointer;padding:4px}
     .form{padding:20px 24px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -98,12 +113,37 @@
     .doc-status{font-size:10px;margin-top:5px;min-height:14px}
     .doc-current{margin-bottom:8px;padding:6px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;font-size:10px;display:flex;align-items:center;justify-content:space-between;gap:6px}
     .modal-foot{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-top:1px solid var(--line);gap:12px}
-    .secondary{border:1px solid var(--line);border-radius:7px;padding:10px 16px;min-height:42px;background:#fff;color:var(--text);font-weight:bold}
-    .toast{position:fixed;right:20px;top:20px;z-index:60;padding:13px 18px;border-radius:8px;color:#fff;background:#0f172a;box-shadow:0 10px 25px #0f172a30;max-width:min(400px,90vw);font-size:12px;line-height:1.4}
+    .secondary{border:1px solid var(--line);border-radius:7px;padding:10px 16px;min-height:40px;background:#fff;color:var(--text);font-weight:bold}
+    .toast{position:fixed;right:20px;top:20px;z-index:60;padding:13px 18px;border-radius:8px;color:#fff;background:#0f172a;box-shadow:0 10px 25px #0f172a30;max-width:min(420px,90vw);font-size:12px;line-height:1.4}
     .hidden{display:none}
+    .preview-summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+    .summary-badge{padding:8px 12px;border-radius:8px;font-size:11px;font-weight:bold;display:flex;align-items:center;gap:6px}
+    .summary-valid{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+    .summary-invalid{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+
+    /* TAMPILAN DASHBOARD DIAGRAM */
+    .dashboard-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-bottom:24px}
+    .dash-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:20px;box-shadow:0 3px 12px #0f172a08;display:flex;flex-direction:column;justify-content:space-between}
+    .dash-card-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #f1f5f9;padding-bottom:14px;margin-bottom:16px}
+    .dash-card-head h3{margin:2px 0 0;font-size:16px;color:var(--navy)}
+    .dash-body{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+    .donut-wrap{position:relative;width:120px;height:120px;min-width:120px;display:grid;place-items:center}
+    .donut-center{position:absolute;text-align:center}
+    .donut-center strong{display:block;font-size:22px;color:var(--navy);line-height:1}
+    .donut-center small{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+    .dash-stats{flex:1;min-width:180px;display:grid;gap:8px}
+    .dash-stat-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:4px 0}
+    .dash-stat-label{display:flex;align-items:center;gap:6px}
+    .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+    .dot-green{background:#15803d}
+    .dot-amber{background:#b45309}
+    .dot-red{background:#b91c1c}
+    .dash-foot{margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center}
+
     @media(max-width:1100px){
       .stats{grid-template-columns:repeat(3,1fr)}
       .stat:last-child{grid-column:span 2}
+      .dashboard-grid{grid-template-columns:1fr}
     }
     @media(max-width:768px){
       .sidebar{transform:translateX(-100%)}
@@ -115,7 +155,8 @@
       .stats{grid-template-columns:1fr 1fr;gap:10px}
       .stat:last-child{grid-column:span 2}
       .intro{flex-direction:column;align-items:stretch}
-      .intro .primary{width:100%;margin-top:10px}
+      .action-buttons{width:100%}
+      .action-buttons button{flex:1 1 auto}
       .filters{padding:12px;flex-direction:column;align-items:stretch}
       .search{max-width:none;width:100%;min-width:0}
       .filter-list{display:grid;grid-template-columns:1fr 1fr;width:100%}
@@ -126,6 +167,7 @@
       .modal-foot button{width:100%}
       .modal header{padding:16px}
       .form{padding:16px}
+      .dash-body{flex-direction:column;align-items:flex-start}
     }
     @media(max-width:440px){
       .filter-list{grid-template-columns:1fr}
@@ -135,97 +177,69 @@
   </style>
 </head>
 <body>
-<div id="app">
-  <div id="sidebar-overlay" class="sidebar-overlay"></div>
-  <aside id="sidebar" class="sidebar">
-    <div class="brand">
-      <div class="brand-icon">✓</div>
-      <div><strong>VERIFIKASI</strong><small>FILLING</small></div>
-    </div>
-    <div class="side-label">WORKSPACE</div>
-    <div class="nav">
-      <button class="active">▦ &nbsp; Dashboard</button>
-    </div>
-    <div class="side-bottom">
-      <div class="user">◉ <span><b>Finance & Accounting</b><br>Workspace aktif</span></div>
-    </div>
-  </aside>
-  <main class="main">
-    <header class="topbar">
-      <div class="topbar-left">
-        <button class="menu-toggle" aria-label="Buka Menu">☰</button>
-        <div><div class="eyebrow">FINANCE CONTROL DESK</div><h1>Dashboard</h1></div>
-      </div>
-      <div class="today">▣ &nbsp; Memuat...</div>
-    </header>
-    <div class="content">
-      <div class="intro">
-        <div>
-          <div class="eyebrow">RINGKASAN VERIFIKASI</div>
-          <h2>Kontrol kelengkapan dokumen</h2>
-          <p>Pantau bukti transaksi dan tindak lanjuti dokumen yang belum lengkap.</p>
-        </div>
-        <button class="primary" onclick="openForm()">＋ Tambah Transaksi</button>
-      </div>
-      <section class="stats">
-        <article class="stat"><span>Total Transaksi</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>Semua transaksi</small></article>
-        <article class="stat"><span>Bukti Lengkap</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>sudah terverifikasi</small></article>
-        <article class="stat"><span>Sebagian Lengkap</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>perlu tindak lanjut</small></article>
-        <article class="stat"><span>Tidak Ada Bukti</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>segera lengkapi</small></article>
-        <article class="stat"><span>Total Nilai Transaksi</span><strong><span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span></strong><small>mengikuti filter aktif</small></article>
-      </section>
-      <section class="panel filters">
-        <div class="search">⌕ <input placeholder="Cari No Transaksi atau Nama Bank..." disabled></div>
-        <div class="filter-list">
-          <label>Bulan<select disabled><option>Semua Bulan</option></select></label>
-          <label>Tahun<select disabled><option>Semua Tahun</option></select></label>
-          <label>Bank<select disabled><option>Semua Bank</option></select></label>
-          <label>Status<select disabled><option>Semua Status</option></select></label>
-        </div>
-      </section>
-      <section class="table-wrap">
-        <div class="table-head">
-          <div><div class="kicker">DATA TRANSAKSI</div><h3>Daftar transaksi</h3></div>
-          <span>Memuat data...</span>
-        </div>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>No</th><th>Transaksi</th><th>Bank</th><th>Tanggal</th><th>Keterangan</th><th>Jumlah</th><th>Pengajuan</th><th>Bayar</th><th>Invoice</th><th>Status</th><th>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;"><span class="spin" style="margin-right:8px;font-size:14px;">⟳</span>Sedang memuat data transaksi...</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="footer">
-          <span>Menampilkan data terfilter</span>
-          <span>Sistem Verifikasi Dokumen</span>
-        </div>
-      </section>
-    </div>
-  </main>
-</div>
+<div id="app"></div>
+<input type="file" id="excel-file-input" accept=".xlsx, .xls" style="display:none;" onchange="handleExcelFileSelect(this)">
 <div id="toast" class="toast hidden"></div>
+
 <script>
 // ==========================================================================
 // KONFIGURASI API BACKEND GOOGLE APPS SCRIPT (UNTUK GITHUB PAGES)
 // ==========================================================================
 // Jika aplikasi di-host di GitHub Pages, masukkan URL Web App Google Apps Script Anda di sini.
-// Contoh: const API_URL = 'https://script.google.com/macros/s/AKfycbx.../exec';
+// Contoh: API_URL: 'https://script.google.com/macros/s/AKfycbwvhL75vGKiCKLOT0ZC3pIAsOHSk0ajFyvJ66tL8ekDG8Z1v5r4usKneBu8DDq_HqB8/exec'
 // Jika aplikasi dijalankan langsung di dalam Google Apps Script, biarkan kosong.
-const API_URL = '';
+const CONFIG = {
+  API_URL: ''
+};
 
 const isAppsScript = typeof google !== 'undefined' && Boolean(google.script) && Boolean(google.script.run);
-let data = [], banks = [], filter = { q: '', month: '0', year: 'all', bank: 'all', status: 'all' }, editing = null;
-let pendingFiles = {}, removedDocs = {};
+
+// DAFTAR PERUSAHAAN
+const COMPANIES_LIST = [
+  { key: 'PATRIA', name: 'PATRIA MENARA ABADI', shortName: 'Patria' },
+  { key: 'ARRAH', name: 'ARRAH ENERGI INDONESIA', shortName: 'Arrah' },
+  { key: 'ABIUMI', name: 'ABIUMI REJEKI BERSAMA', shortName: 'Abiumi' },
+  { key: 'LANGGENG', name: 'LANGGENG NIAGA GEMILANG', shortName: 'Langgeng' }
+];
+
+// STATE APLIKASI
+let currentView = 'TRANSAKSI'; // 'TRANSAKSI' | 'DASHBOARD' | 'HISTORIS'
+let currentCompanyKey = 'PATRIA';
+
+// Cache data transaksi per perusahaan
+const companyCache = {
+  PATRIA: { data: [], loaded: false, loading: false },
+  ARRAH: { data: [], loaded: false, loading: false },
+  ABIUMI: { data: [], loaded: false, loading: false },
+  LANGGENG: { data: [], loaded: false, loading: false }
+};
+
+let banks = [];
+let filter = { q: '', month: '0', year: 'all', bank: 'all', status: 'all' };
+let historisFilter = { q: '', company: 'all' };
+let historisData = [];
+let isHistorisLoading = false;
+
+let dashboardStats = null;
+let isDashboardLoading = false;
+
+let editing = null;
+let pendingFiles = {};
+let removedDocs = {};
 let isSidebarOpen = false;
-let isLoading = true;
 let loadError = null;
+let importedRowsToSave = [];
 
 const $ = id => document.getElementById(id);
+
+function getCompanyObj(key) {
+  return COMPANIES_LIST.find(c => c.key === (key || currentCompanyKey)) || COMPANIES_LIST[0];
+}
+
+function getActiveCompanyName() {
+  return getCompanyObj(currentCompanyKey).name;
+}
+
 const parseNominal = val => {
   if (typeof val === 'number') return val;
   let s = String(val || '').trim();
@@ -263,7 +277,9 @@ const rupiah = value => {
     maximumFractionDigits: 2
   }).format(num);
 };
+
 const escapeHtml = str => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
 const toast = message => {
   const el = $('toast');
   if (!el) return;
@@ -274,7 +290,7 @@ const toast = message => {
 };
 
 function getActiveApiUrl() {
-  return API_URL || (typeof localStorage !== 'undefined' ? localStorage.getItem('VERIFIKASI_API_URL') : '') || '';
+  return CONFIG.API_URL || (typeof localStorage !== 'undefined' ? localStorage.getItem('VERIFIKASI_API_URL') : '') || '';
 }
 
 function call(name, args = []) {
@@ -287,7 +303,7 @@ function call(name, args = []) {
   }
   const url = getActiveApiUrl();
   if (!url) {
-    return Promise.reject(new Error('URL Backend API belum dikonfigurasi. Silakan tentukan URL Web App pada menu Konfigurasi API.'));
+    return Promise.reject(new Error('URL Backend API belum dikonfigurasi pada CONFIG.API_URL di dalam index.html.'));
   }
   return fetch(url, {
     method: 'POST',
@@ -312,6 +328,46 @@ function toggleSidebar(forcedState) {
   if (ov) ov.classList.toggle('open', isSidebarOpen);
 }
 
+function switchCompany(companyKey) {
+  currentCompanyKey = companyKey;
+  currentView = 'TRANSAKSI';
+  toggleSidebar(false);
+  filter.q = '';
+  render();
+  loadCurrentCompanyData();
+}
+
+function switchView(viewName) {
+  currentView = viewName;
+  toggleSidebar(false);
+  render();
+  if (viewName === 'DASHBOARD') {
+    loadDashboardStats();
+  } else if (viewName === 'HISTORIS') {
+    loadHistorisData();
+  }
+}
+
+function getDeviceInfo() {
+  const ua = navigator.userAgent || '';
+  let browser = 'Unknown Browser';
+  if (ua.includes('Edg/')) browser = 'Microsoft Edge';
+  else if (ua.includes('Chrome/')) browser = 'Google Chrome';
+  else if (ua.includes('Safari/') && !ua.includes('Chrome/')) browser = 'Apple Safari';
+  else if (ua.includes('Firefox/')) browser = 'Mozilla Firefox';
+
+  let os = 'Unknown OS';
+  if (ua.includes('Win')) os = 'Windows';
+  else if (ua.includes('Mac')) os = 'macOS';
+  else if (ua.includes('Linux')) os = 'Linux';
+  else if (ua.includes('Android')) os = 'Android';
+  else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(ua);
+  const type = isMobile ? 'Mobile' : 'Desktop';
+  return `${browser} / ${os} / ${type}`;
+}
+
 function handleSearch(el) {
   filter.q = el.value.toLowerCase();
   render();
@@ -323,8 +379,24 @@ function handleSearch(el) {
   }
 }
 
-function render() {
-  const filtered = data.filter(t => {
+function handleHistorisSearch(el) {
+  historisFilter.q = el.value.toLowerCase();
+  render();
+  const searchInput = $('historis-search-input');
+  if (searchInput) {
+    searchInput.focus();
+    const len = searchInput.value.length;
+    searchInput.setSelectionRange(len, len);
+  }
+}
+
+function getCurrentData() {
+  return companyCache[currentCompanyKey] ? companyCache[currentCompanyKey].data : [];
+}
+
+function getFilteredData() {
+  const dataset = getCurrentData();
+  return dataset.filter(t => {
     const d = new Date(t.tanggalTransaksi);
     return (!filter.q || t.noTransaksi.toLowerCase().includes(filter.q) || t.namaBank.toLowerCase().includes(filter.q) || (t.keterangan && t.keterangan.toLowerCase().includes(filter.q)))
       && (filter.month === '0' || String(d.getMonth() + 1) === filter.month)
@@ -332,120 +404,369 @@ function render() {
       && (filter.bank === 'all' || t.namaBank === filter.bank)
       && (filter.status === 'all' || t.statusBukti === filter.status);
   }).sort((a, b) => b.tanggalTransaksi.localeCompare(a.tanggalTransaksi));
+}
 
-  const total = filtered.reduce((s, t) => s + (parseNominal(t.jumlahTransaksi) || 0), 0);
+function getFilteredHistoris() {
+  return historisData.filter(h => {
+    const q = historisFilter.q;
+    const matchQ = !q || h.noTransaksi.toLowerCase().includes(q) || h.perusahaan.toLowerCase().includes(q) || h.namaBank.toLowerCase().includes(q) || (h.keterangan && h.keterangan.toLowerCase().includes(q)) || h.email.toLowerCase().includes(q) || h.timestamp.toLowerCase().includes(q);
+    const matchCompany = historisFilter.company === 'all' || h.perusahaan.toUpperCase().includes(historisFilter.company);
+    return matchQ && matchCompany;
+  });
+}
 
-  let tbodyHtml = '';
-  if (isLoading) {
-    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;"><span class="spin" style="margin-right:8px;font-size:14px;">⟳</span>Sedang memuat data transaksi...</td></tr>`;
-  } else if (!isAppsScript && !getActiveApiUrl()) {
-    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">
-      Belum terhubung ke backend Google Apps Script.<br>
-      <span style="font-size:11px;color:#94a3b8;display:block;margin:6px 0 12px;">Untuk memuat dan menyimpan data transaksi ke Google Sheets, tentukan URL Web App pada menu Pengaturan API.</span>
-      <button type="button" class="primary" style="padding:6px 16px;font-size:11px;" onclick="showApiConfigModal()">⚙ Buka Pengaturan API</button>
-    </td></tr>`;
-  } else if (loadError) {
-    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--red);font-size:12px;">${loadError}<br><button type="button" class="secondary" style="margin-top:12px;padding:6px 16px;font-size:11px;" onclick="load()">⟳ Coba Muat Ulang</button></td></tr>`;
-  } else if (filtered.length) {
-    tbodyHtml = filtered.map((t, i) => row(t, i + 1)).join('');
-  } else {
-    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">Belum ada transaksi yang cocok.<br>Ubah filter atau tambahkan transaksi baru.</td></tr>`;
+function render() {
+  const app = $('app');
+  if (!app) return;
+
+  const currentComp = getCompanyObj(currentCompanyKey);
+  const cacheObj = companyCache[currentCompanyKey];
+  const isCompLoading = cacheObj ? cacheObj.loading : false;
+
+  let mainContentHtml = '';
+
+  if (currentView === 'TRANSAKSI') {
+    const filtered = getFilteredData();
+    const total = filtered.reduce((s, t) => s + (parseNominal(t.jumlahTransaksi) || 0), 0);
+
+    let tbodyHtml = '';
+    if (isCompLoading) {
+      tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;"><span class="spin" style="margin-right:8px;font-size:14px;">⟳</span>Sedang memuat data transaksi ${escapeHtml(currentComp.name)}...</td></tr>`;
+    } else if (!isAppsScript && !getActiveApiUrl()) {
+      tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">
+        Belum terhubung ke backend Google Apps Script.<br>
+        <span style="font-size:11px;color:#94a3b8;display:block;margin:6px 0;">Silakan tentukan nilai <code>CONFIG.API_URL</code> di dalam file <code>index.html</code> untuk menghubungkan ke Google Sheets.</span>
+      </td></tr>`;
+    } else if (loadError) {
+      tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--red);font-size:12px;">${escapeHtml(loadError)}<br><button type="button" class="secondary" style="margin-top:12px;padding:6px 16px;font-size:11px;" onclick="loadCurrentCompanyData()">⟳ Coba Muat Ulang</button></td></tr>`;
+    } else if (filtered.length) {
+      tbodyHtml = filtered.map((t, i) => row(t, i + 1)).join('');
+    } else {
+      tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">Belum ada transaksi yang cocok untuk ${escapeHtml(currentComp.name)}.<br>Ubah filter atau tambahkan transaksi baru.</td></tr>`;
+    }
+
+    const statDisplay = (val) => {
+      if (isCompLoading) return '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>';
+      if (!isAppsScript && !getActiveApiUrl()) return '0';
+      return val;
+    };
+    const totalDisplay = isCompLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : (!isAppsScript && !getActiveApiUrl()) ? rupiah(0) : rupiah(total);
+
+    mainContentHtml = `
+      <div class="intro">
+        <div>
+          <div class="eyebrow">RINGKASAN VERIFIKASI — ${escapeHtml(currentComp.name)}</div>
+          <h2>Kontrol kelengkapan dokumen</h2>
+          <p>Pantau bukti transaksi dan tindak lanjuti dokumen yang belum lengkap pada ${escapeHtml(currentComp.name)}.</p>
+        </div>
+        <div class="action-buttons">
+          <button class="primary" onclick="openForm()">＋ Tambah Transaksi</button>
+          <button class="btn-action" onclick="openImportDialog()" title="Import transaksi dari file Excel (.xlsx / .xls)">📥 Import Excel</button>
+          <button class="btn-action btn-excel" onclick="exportToExcel()" title="Unduh data terfilter ke format Excel">📊 Export Excel</button>
+          <button class="btn-action btn-pdf" onclick="exportToPdf()" title="Unduh laporan terfilter ke format PDF">📄 Export PDF</button>
+        </div>
+      </div>
+      <section class="stats">
+        ${stat('Total Transaksi', statDisplay(filtered.length), currentComp.shortName)}
+        ${stat('Bukti Lengkap', statDisplay(filtered.filter(t => t.statusBukti === 'BUKTI LENGKAP').length), 'sudah terverifikasi')}
+        ${stat('Sebagian Lengkap', statDisplay(filtered.filter(t => t.statusBukti === 'SEBAGIAN LENGKAP').length), 'perlu tindak lanjut')}
+        ${stat('Tidak Ada Bukti', statDisplay(filtered.filter(t => t.statusBukti === 'TIDAK ADA BUKTI').length), 'segera lengkapi')}
+        ${stat('Total Nilai Transaksi', totalDisplay, 'mengikuti filter aktif')}
+      </section>
+      <section class="panel filters">
+        <div class="search">⌕ <input id="search-input" placeholder="Cari No Transaksi, Nama Bank, atau Keterangan..." value="${escapeHtml(filter.q)}" oninput="handleSearch(this)"></div>
+        <div class="filter-list">
+          ${select('month', 'Bulan', ['Semua Bulan', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'])}
+          ${select('year', 'Tahun', ['Semua Tahun', ...years(getCurrentData())])}
+          ${select('bank', 'Bank', ['Semua Bank', ...banks])}
+          ${select('status', 'Status', ['Semua Status', 'Bukti Lengkap', 'Sebagian Lengkap', 'Tidak Ada Bukti'])}
+        </div>
+      </section>
+      <section class="table-wrap">
+        <div class="table-head">
+          <div><div class="kicker">DATA TRANSAKSI — ${escapeHtml(currentComp.shortName.toUpperCase())}</div><h3>Daftar transaksi</h3></div>
+          <span>${isCompLoading ? 'Memuat data...' : (!isAppsScript && !getActiveApiUrl()) ? 'Belum terhubung' : filtered.length + ' transaksi ditemukan'}</span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Transaksi</th>
+                <th>Bank</th>
+                <th>Tanggal</th>
+                <th>Keterangan</th>
+                <th>Jumlah</th>
+                <th>Pengajuan</th>
+                <th>Bayar</th>
+                <th>Invoice</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tbodyHtml}
+            </tbody>
+          </table>
+        </div>
+        <div class="footer">
+          <span>Menampilkan data ${escapeHtml(currentComp.name)}</span>
+          <span>Sistem Verifikasi Dokumen</span>
+        </div>
+      </section>
+    `;
+  } else if (currentView === 'DASHBOARD') {
+    mainContentHtml = renderDashboardViewHtml();
+  } else if (currentView === 'HISTORIS') {
+    mainContentHtml = renderHistorisViewHtml();
   }
 
-  const statDisplay = (val) => {
-    if (isLoading) return '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>';
-    if (!isAppsScript && !getActiveApiUrl()) return '0';
-    return val;
-  };
-  const totalDisplay = isLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : (!isAppsScript && !getActiveApiUrl()) ? rupiah(0) : rupiah(total);
-
-  $('app').innerHTML = `
+  app.innerHTML = `
     <div id="sidebar-overlay" class="sidebar-overlay ${isSidebarOpen ? 'open' : ''}" onclick="toggleSidebar(false)"></div>
     <aside id="sidebar" class="sidebar ${isSidebarOpen ? 'open' : ''}">
       <div class="brand">
         <div class="brand-icon">✓</div>
-        <div><strong>VERIFIKASI</strong><small>FILLING</small></div>
+        <div><strong>PATRIA MENARA ABADI</strong><small>VERIFIKASI FILLING</small></div>
       </div>
-      <div class="side-label">WORKSPACE</div>
-      <div class="nav">
-        <button class="active" onclick="toggleSidebar(false)">▦ &nbsp; Dashboard</button>
+
+      <div class="side-section">
+        <div class="side-label">PERUSAHAAN</div>
+        <div class="nav">
+          ${COMPANIES_LIST.map(comp => `
+            <button class="${currentView === 'TRANSAKSI' && currentCompanyKey === comp.key ? 'active' : ''}" onclick="switchCompany('${comp.key}')">
+              <span class="nav-icon">🏢</span>
+              <span>${escapeHtml(comp.name)}</span>
+            </button>
+          `).join('')}
+        </div>
       </div>
-      <div class="side-bottom">
-        ${!isAppsScript ? `
-          <button type="button" class="btn-api-cfg" onclick="showApiConfigModal()">
-            ⚙ <span>Pengaturan API</span>
+
+      <div class="side-section">
+        <div class="side-label">SISTEM & AUDIT</div>
+        <div class="nav">
+          <button class="${currentView === 'DASHBOARD' ? 'active' : ''}" onclick="switchView('DASHBOARD')">
+            <span class="nav-icon">📊</span>
+            <span>DASHBOARD</span>
           </button>
-        ` : ''}
-        <div class="user">◉ <span><b>Finance & Accounting</b><br>Workspace aktif</span></div>
+          <button class="${currentView === 'HISTORIS' ? 'active' : ''}" onclick="switchView('HISTORIS')">
+            <span class="nav-icon">📜</span>
+            <span>HISTORIS</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="side-bottom">
+        <div class="user">◉ <span><b>Finance & Accounting</b><br>${escapeHtml(getActiveCompanyName())}</span></div>
       </div>
     </aside>
+
     <main class="main">
       <header class="topbar">
         <div class="topbar-left">
           <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Buka Menu">☰</button>
-          <div><div class="eyebrow">FINANCE CONTROL DESK</div><h1>Dashboard</h1></div>
+          <div>
+            <div class="eyebrow">${currentView === 'TRANSAKSI' ? 'WORKSPACE PERUSAHAAN' : currentView === 'DASHBOARD' ? 'RINGKASAN EKSEKUTIF' : 'AUDIT TRAIL SISTEM'}</div>
+            <h1>${currentView === 'TRANSAKSI' ? escapeHtml(getActiveCompanyName()) : currentView === 'DASHBOARD' ? 'DASHBOARD KELENGKAPAN' : 'HISTORIS PENGHAPUSAN'}</h1>
+          </div>
         </div>
         <div class="today">▣ &nbsp; ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date())}</div>
       </header>
+
       <div class="content">
-        <div class="intro">
-          <div>
-            <div class="eyebrow">RINGKASAN VERIFIKASI</div>
-            <h2>Kontrol kelengkapan dokumen</h2>
-            <p>Pantau bukti transaksi dan tindak lanjuti dokumen yang belum lengkap.</p>
-          </div>
-          <button class="primary" onclick="openForm()">＋ Tambah Transaksi</button>
-        </div>
-        <section class="stats">
-          ${stat('Total Transaksi', statDisplay(filtered.length), 'Semua transaksi')}
-          ${stat('Bukti Lengkap', statDisplay(filtered.filter(t => t.statusBukti === 'BUKTI LENGKAP').length), 'sudah terverifikasi')}
-          ${stat('Sebagian Lengkap', statDisplay(filtered.filter(t => t.statusBukti === 'SEBAGIAN LENGKAP').length), 'perlu tindak lanjut')}
-          ${stat('Tidak Ada Bukti', statDisplay(filtered.filter(t => t.statusBukti === 'TIDAK ADA BUKTI').length), 'segera lengkapi')}
-          ${stat('Total Nilai Transaksi', totalDisplay, 'mengikuti filter aktif')}
-        </section>
-        <section class="panel filters">
-          <div class="search">⌕ <input id="search-input" placeholder="Cari No Transaksi, Nama Bank, atau Keterangan..." value="${filter.q}" oninput="handleSearch(this)"></div>
-          <div class="filter-list">
-            ${select('month', 'Bulan', ['Semua Bulan', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'])}
-            ${select('year', 'Tahun', ['Semua Tahun', ...years(data)])}
-            ${select('bank', 'Bank', ['Semua Bank', ...banks])}
-            ${select('status', 'Status', ['Semua Status', 'Bukti Lengkap', 'Sebagian Lengkap', 'Tidak Ada Bukti'])}
-          </div>
-        </section>
-        <section class="table-wrap">
-          <div class="table-head">
-            <div><div class="kicker">DATA TRANSAKSI</div><h3>Daftar transaksi</h3></div>
-            <span>${isLoading ? 'Memuat data...' : (!isAppsScript && !getActiveApiUrl()) ? 'Belum terhubung' : filtered.length + ' transaksi ditemukan'}</span>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>No</th>
-                  <th>Transaksi</th>
-                  <th>Bank</th>
-                  <th>Tanggal</th>
-                  <th>Keterangan</th>
-                  <th>Jumlah</th>
-                  <th>Pengajuan</th>
-                  <th>Bayar</th>
-                  <th>Invoice</th>
-                  <th>Status</th>
-                  <th>Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${tbodyHtml}
-              </tbody>
-            </table>
-          </div>
-          <div class="footer">
-            <span>Menampilkan data terfilter</span>
-            <span>Sistem Verifikasi Dokumen</span>
-          </div>
-        </section>
+        ${mainContentHtml}
       </div>
     </main>
+  `;
+}
+
+// RENDER DASHBOARD PERSENTASE KELENGKAPAN 4 PERUSAHAAN
+function renderDashboardViewHtml() {
+  const stats = dashboardStats || {};
+  const overall = stats.overall || { total: 0, amount: 0, lengkap: 0, sebagian: 0, tidakAda: 0, persentaseLengkap: 0, persentaseSebagian: 0, persentaseTidakAda: 0 };
+
+  const companyCardsHtml = COMPANIES_LIST.map(comp => {
+    const compStat = stats[comp.key] || { total: 0, amount: 0, lengkap: 0, sebagian: 0, tidakAda: 0, persentaseLengkap: 0, persentaseSebagian: 0, persentaseTidakAda: 0 };
+    return `
+      <div class="dash-card">
+        <div class="dash-card-head">
+          <div>
+            <div class="kicker">PERUSAHAAN</div>
+            <h3>${escapeHtml(comp.name)}</h3>
+          </div>
+          <span class="badge badge-gray">${compStat.total} Transaksi</span>
+        </div>
+        <div class="dash-body">
+          <div class="donut-wrap">
+            ${createSvgDonut(compStat.persentaseLengkap, compStat.persentaseSebagian, compStat.persentaseTidakAda)}
+            <div class="donut-center">
+              <strong>${compStat.persentaseLengkap}%</strong>
+              <small>Lengkap</small>
+            </div>
+          </div>
+          <div class="dash-stats">
+            <div class="dash-stat-row">
+              <span class="dash-stat-label"><span class="dot dot-green"></span>Bukti Lengkap:</span>
+              <b>${compStat.lengkap} (${compStat.persentaseLengkap}%)</b>
+            </div>
+            <div class="dash-stat-row">
+              <span class="dash-stat-label"><span class="dot dot-amber"></span>Sebagian Lengkap:</span>
+              <b>${compStat.sebagian} (${compStat.persentaseSebagian}%)</b>
+            </div>
+            <div class="dash-stat-row">
+              <span class="dash-stat-label"><span class="dot dot-red"></span>Tidak Ada Bukti:</span>
+              <b>${compStat.tidakAda} (${compStat.persentaseTidakAda}%)</b>
+            </div>
+            <div class="dash-stat-row" style="border-top:1px dashed var(--line);padding-top:6px;margin-top:2px;">
+              <span style="color:var(--muted)">Total Nilai:</span>
+              <b style="color:#1e293b">${rupiah(compStat.amount)}</b>
+            </div>
+          </div>
+        </div>
+        <div class="dash-foot">
+          <span style="font-size:10px;color:var(--muted)">Data aktual dari sheet TRANSAKSI_${comp.key}</span>
+          <button type="button" class="btn-action" style="padding:6px 12px;font-size:11px;min-height:32px;" onclick="switchCompany('${comp.key}')">Buka Transaksi →</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="intro">
+      <div>
+        <div class="eyebrow">DASHBOARD EKSEKUTIF</div>
+        <h2>Persentase Kelengkapan 4 Perusahaan</h2>
+        <p>Ringkasan perbandingan status kelengkapan bukti transaksi keuangan yang dihitung langsung dari Google Sheets secara aktual.</p>
+      </div>
+      <div class="action-buttons">
+        <button class="btn-action" onclick="loadDashboardStats()" title="Perbarui data statistik dari Google Sheets">⟳ Segarkan Statistik</button>
+      </div>
+    </div>
+
+    <section class="stats">
+      ${stat('Konsolidasi Transaksi', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : overall.total, 'Semua 4 perusahaan')}
+      ${stat('Total Bukti Lengkap', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : overall.lengkap + ` (${overall.persentaseLengkap}%)`, 'terverifikasi')}
+      ${stat('Sebagian Lengkap', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : overall.sebagian + ` (${overall.persentaseSebagian}%)`, 'perlu dilengkapi')}
+      ${stat('Tidak Ada Bukti', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : overall.tidakAda + ` (${overall.persentaseTidakAda}%)`, 'segera tindak lanjuti')}
+      ${stat('Total Nilai Keseluruhan', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : rupiah(overall.amount), 'semua transaksi')}
+    </section>
+
+    <div class="dashboard-grid">
+      ${companyCardsHtml}
+    </div>
+  `;
+}
+
+// MEMBUAT DONUT SVG DENGAN PERHITUNGAN AKURAT
+function createSvgDonut(pctLengkap, pctSebagian, pctTidakAda) {
+  const radius = 46;
+  const circumference = 2 * Math.PI * radius; // ~289.02
+  
+  const lenStroke = (pctLengkap / 100) * circumference;
+  const sebStroke = (pctSebagian / 100) * circumference;
+  const tidStroke = (pctTidakAda / 100) * circumference;
+
+  const lenOffset = 0;
+  const sebOffset = -lenStroke;
+  const tidOffset = -(lenStroke + sebStroke);
+
+  return `
+    <svg width="120" height="120" viewBox="0 0 120 120" style="transform:rotate(-90deg);">
+      <circle cx="60" cy="60" r="${radius}" fill="none" stroke="#f1f5f9" stroke-width="12" />
+      ${pctLengkap > 0 ? `<circle cx="60" cy="60" r="${radius}" fill="none" stroke="#15803d" stroke-width="12" stroke-dasharray="${lenStroke} ${circumference - lenStroke}" stroke-dashoffset="${lenOffset}" stroke-linecap="round" />` : ''}
+      ${pctSebagian > 0 ? `<circle cx="60" cy="60" r="${radius}" fill="none" stroke="#b45309" stroke-width="12" stroke-dasharray="${sebStroke} ${circumference - sebStroke}" stroke-dashoffset="${sebOffset}" stroke-linecap="round" />` : ''}
+      ${pctTidakAda > 0 ? `<circle cx="60" cy="60" r="${radius}" fill="none" stroke="#b91c1c" stroke-width="12" stroke-dasharray="${tidStroke} ${circumference - tidStroke}" stroke-dashoffset="${tidOffset}" stroke-linecap="round" />` : ''}
+    </svg>
+  `;
+}
+
+// RENDER HISTORIS VIEW (IMMUTABLE - NO EDIT / NO DELETE)
+function renderHistorisViewHtml() {
+  const filtered = getFilteredHistoris();
+
+  let tbodyHtml = '';
+  if (isHistorisLoading) {
+    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;"><span class="spin" style="margin-right:8px;font-size:14px;">⟳</span>Sedang memuat catatan historis...</td></tr>`;
+  } else if (!isAppsScript && !getActiveApiUrl()) {
+    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">Belum terhubung ke backend Google Apps Script.</td></tr>`;
+  } else if (filtered.length) {
+    tbodyHtml = filtered.map((h, i) => `
+      <tr>
+        <td>${String(i + 1).padStart(2, '0')}</td>
+        <td><b style="color:var(--navy);">${escapeHtml(h.timestamp)}</b></td>
+        <td><span class="badge badge-gray"><b>${escapeHtml(h.perusahaan)}</b></span></td>
+        <td><b>${escapeHtml(h.noTransaksi)}</b></td>
+        <td>${escapeHtml(h.namaBank)}</td>
+        <td>${escapeHtml(h.tanggalTransaksi)}</td>
+        <td class="amount">${rupiah(h.jumlahTransaksi)}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(h.keterangan || '')}">${escapeHtml(h.keterangan || '-')}</td>
+        <td><span class="badge ${h.statusBukti === 'BUKTI LENGKAP' ? 'complete' : h.statusBukti === 'SEBAGIAN LENGKAP' ? 'partial' : 'empty'}">${escapeHtml(h.statusBukti || '-')}</span></td>
+        <td><span style="font-size:10.5px;color:#2563eb;" title="${escapeHtml(h.email)}">👤 ${escapeHtml(h.email)}</span></td>
+        <td><span style="font-size:10px;color:var(--muted);" title="${escapeHtml(h.device)}">💻 ${escapeHtml(h.device)}</span></td>
+        <td><span class="badge empty" style="font-size:9px;font-weight:bold;">${escapeHtml(h.aktivitas)}</span></td>
+      </tr>
+    `).join('');
+  } else {
+    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">Belum ada riwayat penghapusan transaksi.</td></tr>`;
+  }
+
+  return `
+    <div class="intro">
+      <div>
+        <div class="eyebrow">AUDIT TRAIL & SISTEM PENGAMANAN</div>
+        <h2>Historis Penghapusan Transaksi</h2>
+        <p>Setiap transaksi yang dihapus dicatat secara permanen di sini lengkap dengan data snapshot, email akun, dan perangkat. <b>Catatan ini bersifat permanen (read-only) dan tidak dapat diubah atau dihapus oleh siapapun melalui aplikasi.</b></p>
+      </div>
+      <div class="action-buttons">
+        <button class="btn-action" onclick="loadHistorisData()" title="Perbarui data historis">⟳ Segarkan Histori</button>
+        <button class="btn-action btn-excel" onclick="exportHistorisToExcel()" title="Unduh data historis ke Excel">📊 Export Excel Histori</button>
+      </div>
+    </div>
+
+    <section class="panel filters">
+      <div class="search">⌕ <input id="historis-search-input" placeholder="Cari No. Transaksi, Bank, Email, atau Waktu..." value="${escapeHtml(historisFilter.q)}" oninput="handleHistorisSearch(this)"></div>
+      <div class="filter-list">
+        <label>Perusahaan
+          <select onchange="historisFilter.company=this.value;render()">
+            <option value="all" ${historisFilter.company === 'all' ? 'selected' : ''}>Semua Perusahaan</option>
+            ${COMPANIES_LIST.map(c => `<option value="${c.key}" ${historisFilter.company === c.key ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="table-wrap">
+      <div class="table-head">
+        <div><div class="kicker">LOG AUDIT TRAIL</div><h3>Catatan Penghapusan (${filtered.length})</h3></div>
+        <span style="font-size:11px;color:var(--green);font-weight:bold;">🔒 Immutable / Read-Only</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Waktu Penghapusan</th>
+              <th>Perusahaan</th>
+              <th>No Transaksi</th>
+              <th>Bank</th>
+              <th>Tgl Transaksi</th>
+              <th>Jumlah</th>
+              <th>Keterangan</th>
+              <th>Status Bukti</th>
+              <th>Email Akun</th>
+              <th>Perangkat / Browser</th>
+              <th>Aktivitas</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tbodyHtml}
+          </tbody>
+        </table>
+      </div>
+      <div class="footer">
+        <span>Menampilkan log penghapusan transaksi terverifikasi</span>
+        <span>Keamanan & Integritas Data Terjamin</span>
+      </div>
+    </section>
   `;
 }
 
@@ -493,8 +814,8 @@ function row(t, i) {
     <td><span class="badge ${t.statusBukti === 'BUKTI LENGKAP' ? 'complete' : t.statusBukti === 'SEBAGIAN LENGKAP' ? 'partial' : 'empty'}">${t.statusBukti}</span></td>
     <td>
       <div class="actions">
-        <button class="edit" onclick="openForm('${t.id}')" title="Edit transaksi">✎</button>
-        <button class="delete" onclick="confirmDelete('${t.id}')" title="Hapus transaksi">⌫</button>
+        <button class="edit" onclick="openForm('${escapeHtml(t.noTransaksi)}')" title="Edit transaksi">✎</button>
+        <button class="delete" onclick="confirmDelete('${escapeHtml(t.noTransaksi)}')" title="Hapus transaksi (Dicatat di Historis)">⌫</button>
       </div>
     </td>
   </tr>`;
@@ -506,8 +827,9 @@ function docCell(doc) {
   return `<td>${url ? `<a class="doc" href="${url}" target="_blank" title="${name}">↗ Lihat</a>` : '<span class="missing">Belum ada</span>'}</td>`;
 }
 
-function openForm(id) {
-  editing = data.find(t => t.id === id) || null;
+function openForm(noTransaksi) {
+  const currentDataset = getCurrentData();
+  editing = currentDataset.find(t => t.noTransaksi === noTransaksi) || null;
   pendingFiles = {};
   removedDocs = {};
   const t = editing || { noTransaksi: '', namaBank: '', tanggalTransaksi: '', keterangan: '', jumlahTransaksi: '', buktiPengajuan: null, buktiBayar: null, invoice: null };
@@ -520,7 +842,7 @@ function openForm(id) {
       <div class="modal">
         <header>
           <div>
-            <div class="eyebrow">${editing ? 'PERBARUI DATA' : 'DATA TRANSAKSI BARU'}</div>
+            <div class="eyebrow">${editing ? 'PERBARUI DATA TRANSAKSI' : 'TRANSAKSI BARU'} — ${escapeHtml(getActiveCompanyName())}</div>
             <h2>${editing ? 'Edit transaksi' : 'Tambah transaksi'}</h2>
           </div>
           <button class="close" type="button" onclick="closeModal()">×</button>
@@ -539,7 +861,7 @@ function openForm(id) {
             ${docForm('invoice', 'Invoice', t.invoice)}
           </div>
           <div class="modal-foot">
-            <span style="font-size:11px;color:var(--muted)">Status dihitung otomatis</span>
+            <span style="font-size:11px;color:var(--muted)">Disimpan ke sheet ${escapeHtml(getCompanyObj(currentCompanyKey).shortName)}</span>
             <div style="display:flex;gap:8px;">
               <button type="button" class="secondary" onclick="closeModal()">Batal</button>
               <button type="submit" class="primary" id="btn-save">Simpan</button>
@@ -561,8 +883,8 @@ function docForm(key, label, doc) {
       <h4>${label}</h4>
       ${hasDoc ? `
         <div class="doc-current" id="${key}-current">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;" title="${docName}">
-            📄 <a class="doc" href="${docUrl}" target="_blank">${docName}</a>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;" title="${escapeHtml(docName)}">
+            📄 <a class="doc" href="${docUrl}" target="_blank">${escapeHtml(docName)}</a>
           </span>
           <button type="button" onclick="removeDoc('${key}')" style="border:0;background:transparent;color:var(--red);font-size:12px;padding:0 4px;font-weight:bold;cursor:pointer;" title="Hapus dokumen">✕</button>
         </div>
@@ -572,7 +894,7 @@ function docForm(key, label, doc) {
       <div id="${key}-file-info" class="doc-status"></div>
       <div class="doc-sep">atau</div>
       <div class="doc-label">Link Google Drive</div>
-      <input id="${key}-link" type="text" placeholder="Tempel link Google Drive" value="${hasDoc && (!doc.fileId || !doc.fileName) ? docUrl : ''}" oninput="handleLinkInput('${key}')">
+      <input id="${key}-link" type="text" placeholder="Tempel link Google Drive" value="${hasDoc && (!doc.fileId || !doc.fileName) ? escapeHtml(docUrl) : ''}" oninput="handleLinkInput('${key}')">
     </div>
   `;
 }
@@ -627,7 +949,7 @@ function handleFileSelect(key, input) {
     };
     delete removedDocs[key];
     if (infoEl) {
-      infoEl.innerHTML = `<span style="color:var(--green)">✓ ${file.name}</span>`;
+      infoEl.innerHTML = `<span style="color:var(--green)">✓ ${escapeHtml(file.name)}</span>`;
     }
   };
   reader.onerror = function() {
@@ -647,6 +969,7 @@ function closeModal() {
   removedDocs = {};
 }
 
+// PROSES SAVE YANG CEPAT & OPTIMAL
 function save(event) {
   event.preventDefault();
   const noTransaksi = $('f-no').value.trim();
@@ -696,84 +1019,297 @@ function save(event) {
   const saveBtn = $('btn-save');
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Menyimpan...';
+    saveBtn.innerHTML = '<span class="spin">⟳</span> Menyimpan...';
   }
 
-  const fn = editing ? 'updateTransaction' : 'addTransaction';
-  const args = editing ? [editing.id, payload] : [payload];
+  const targetCompanyKey = currentCompanyKey;
+  const isEditing = Boolean(editing);
+  const fn = isEditing ? 'updateTransaction' : 'addTransaction';
+  const args = isEditing ? [editing.noTransaksi, payload, targetCompanyKey] : [payload, targetCompanyKey];
 
-  if (!isAppsScript && !getActiveApiUrl()) {
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.textContent = 'Simpan';
-    }
-    toast('URL API belum dikonfigurasi. Silakan buka Pengaturan API.');
-    showApiConfigModal();
-    return;
-  }
-
+  // Eksekusi asinkron tanpa reload halaman
   call(fn, args).then(result => {
-    if (editing) {
-      data = data.map(t => t.id === result.id ? result : t);
+    const currentDataset = companyCache[targetCompanyKey] ? companyCache[targetCompanyKey].data : [];
+    if (isEditing) {
+      companyCache[targetCompanyKey].data = currentDataset.map(t => t.noTransaksi === editing.noTransaksi ? result : t);
     } else {
-      data.unshift(result);
+      companyCache[targetCompanyKey].data = [result, ...currentDataset];
     }
+    
     closeModal();
-    render();
-    toast('Data berhasil disimpan.');
+    render(); // Langsung update tampilan seketika!
+    toast(`Data transaksi berhasil disimpan ke ${getCompanyObj(targetCompanyKey).name}.`);
+    
+    // Invalidasi statistik dashboard di latar belakang
+    dashboardStats = null;
   }).catch(error => {
     if (saveBtn) {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Simpan';
     }
-    toast(error && error.message ? error.message : 'Gagal menyimpan data. Silakan coba lagi.');
+    toast(error && error.message ? error.message : 'Gagal menyimpan data. Silakan periksa koneksi dan coba lagi.');
   });
 }
 
-function confirmDelete(id) {
-  if (!isAppsScript && !getActiveApiUrl()) {
-    toast('URL API belum dikonfigurasi. Silakan buka Pengaturan API.');
-    showApiConfigModal();
+// PENGHAPUSAN TRANSAKSI DENGAN PENCATATAN HISTORIS WAJIB (AUDIT TRAIL)
+function confirmDelete(noTransaksi) {
+  const compName = getActiveCompanyName();
+  const confirmed = confirm(`PERINGATAN PENGHAPUSAN:\n\nApakah Anda yakin ingin menghapus transaksi "${noTransaksi}" dari ${compName}?\n\nSebelum data dihapus dari database, sistem WAJIB mencatat audit trail (waktu, email, perangkat, dan data transaksi) ke sheet HISTORIS secara permanen.`);
+  if (!confirmed) return;
+
+  const targetCompanyKey = currentCompanyKey;
+  const clientInfo = {
+    device: getDeviceInfo(),
+    userEmail: ''
+  };
+
+  call('deleteTransaction', [noTransaksi, targetCompanyKey, clientInfo]).then(result => {
+    const currentDataset = companyCache[targetCompanyKey] ? companyCache[targetCompanyKey].data : [];
+    companyCache[targetCompanyKey].data = currentDataset.filter(x => x.noTransaksi !== noTransaksi);
+    
+    render();
+    toast(`Transaksi "${noTransaksi}" berhasil dihapus dan tercatat di HISTORIS.`);
+    
+    // Invalidasi data historis & dashboard agar memuat data terbaru
+    historisData = [];
+    dashboardStats = null;
+  }).catch(error => {
+    toast(error && error.message ? error.message : 'Gagal menghapus transaksi. Data tetap aman dan tidak dihapus.');
+  });
+}
+
+// ==========================================================================
+// FITUR IMPORT EXCEL UNTUK PERUSAHAAN AKTIF
+// ==========================================================================
+function openImportDialog() {
+  const fileInput = $('excel-file-input');
+  if (fileInput) {
+    fileInput.value = '';
+    fileInput.click();
+  }
+}
+
+function handleExcelFileSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const dataBytes = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(dataBytes, { type: 'array', cellDates: true });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+      processImportData(rawRows);
+    } catch (err) {
+      toast('Gagal membaca file Excel: ' + (err.message || String(err)));
+    }
+    input.value = '';
+  };
+  reader.onerror = function() {
+    toast('Gagal membaca file dari komputer.');
+    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseExcelDate(val) {
+  if (!val) return '';
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return val.toISOString().slice(0, 10);
+  }
+  const str = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmy) {
+    const day = dmy[1].padStart(2, '0');
+    const month = dmy[2].padStart(2, '0');
+    const year = dmy[3];
+    return `${year}-${month}-${day}`;
+  }
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+  return '';
+}
+
+function processImportData(sheetRows) {
+  if (!sheetRows || sheetRows.length < 2) {
+    toast('File Excel tidak berisi data transaksi atau hanya header.');
     return;
   }
-  if (!confirm('Apakah Anda yakin ingin menghapus transaksi ini? File Google Drive tidak akan dihapus.')) return;
-  call('deleteTransaction', [id]).then(() => {
-    data = data.filter(x => x.id !== id);
-    render();
-    toast('Transaksi berhasil dihapus.');
-  }).catch(error => {
-    toast(error && error.message ? error.message : 'Gagal menghapus data. Silakan coba lagi.');
-  });
+
+  let headerIndex = -1;
+  let colMap = {};
+
+  for (let r = 0; r < Math.min(sheetRows.length, 5); r++) {
+    const row = sheetRows[r];
+    if (!Array.isArray(row)) continue;
+    const lowerHeaders = row.map(cell => String(cell || '').trim().toLowerCase());
+    
+    let noIdx = lowerHeaders.findIndex(h => /transaksi|no.*trans|nomor/i.test(h) && !/jumlah|nilai|tanggal|status/i.test(h));
+    let bankIdx = lowerHeaders.findIndex(h => /bank/i.test(h));
+    let tglIdx = lowerHeaders.findIndex(h => /tanggal|tgl|date/i.test(h));
+    let jmlIdx = lowerHeaders.findIndex(h => /jumlah|nominal|amount|nilai/i.test(h));
+
+    if (noIdx !== -1 && (bankIdx !== -1 || tglIdx !== -1 || jmlIdx !== -1)) {
+      headerIndex = r;
+      colMap = {
+        noTransaksi: noIdx,
+        namaBank: bankIdx,
+        tanggalTransaksi: tglIdx,
+        keterangan: lowerHeaders.findIndex(h => /keterangan|deskripsi|notes|catatan/i.test(h)),
+        jumlahTransaksi: jmlIdx,
+        buktiPengajuan: lowerHeaders.findIndex(h => /pengajuan|bukti.*transaksi/i.test(h)),
+        buktiBayar: lowerHeaders.findIndex(h => /bayar|bukti.*bayar/i.test(h)),
+        invoice: lowerHeaders.findIndex(h => /invoice|faktur/i.test(h)),
+        status: lowerHeaders.findIndex(h => /status/i.test(h))
+      };
+      break;
+    }
+  }
+
+  if (headerIndex === -1) {
+    headerIndex = 0;
+    colMap = {
+      noTransaksi: 0,
+      namaBank: 1,
+      tanggalTransaksi: 2,
+      keterangan: 3,
+      jumlahTransaksi: 4,
+      buktiPengajuan: 5,
+      buktiBayar: 6,
+      invoice: 7,
+      status: 8
+    };
+  }
+
+  const existingNoSet = new Set(getCurrentData().map(t => String(t.noTransaksi || '').trim().toLowerCase()));
+  const batchNoSet = new Set();
+  const parsedRows = [];
+
+  for (let r = headerIndex + 1; r < sheetRows.length; r++) {
+    const row = sheetRows[r];
+    if (!row || !row.some(cell => String(cell || '').trim())) continue;
+
+    const noTransaksi = colMap.noTransaksi !== -1 ? String(row[colMap.noTransaksi] || '').trim() : '';
+    const namaBank = colMap.namaBank !== -1 ? String(row[colMap.namaBank] || '').trim() : '';
+    const rawDate = colMap.tanggalTransaksi !== -1 ? row[colMap.tanggalTransaksi] : '';
+    const tanggalTransaksi = parseExcelDate(rawDate);
+    const keterangan = colMap.keterangan !== -1 ? String(row[colMap.keterangan] || '').trim() : '';
+    const rawAmount = colMap.jumlahTransaksi !== -1 ? row[colMap.jumlahTransaksi] : '';
+    const jumlahTransaksi = parseNominal(rawAmount);
+
+    const pengajuan = colMap.buktiPengajuan !== -1 ? String(row[colMap.buktiPengajuan] || '').trim() : '';
+    const bayar = colMap.buktiBayar !== -1 ? String(row[colMap.buktiBayar] || '').trim() : '';
+    const inv = colMap.invoice !== -1 ? String(row[colMap.invoice] || '').trim() : '';
+
+    let error = null;
+    if (!noTransaksi) {
+      error = 'No Transaksi kosong';
+    } else if (existingNoSet.has(noTransaksi.toLowerCase())) {
+      error = 'No Transaksi sudah ada di ' + getCompanyObj(currentCompanyKey).shortName;
+    } else if (batchNoSet.has(noTransaksi.toLowerCase())) {
+      error = 'No Transaksi duplikat di file Excel';
+    } else if (!namaBank) {
+      error = 'Nama Bank kosong';
+    } else if (!tanggalTransaksi) {
+      error = 'Tanggal transaksi tidak valid';
+    } else if (isNaN(jumlahTransaksi) || jumlahTransaksi <= 0) {
+      error = 'Jumlah transaksi tidak valid';
+    }
+
+    if (!error) {
+      batchNoSet.add(noTransaksi.toLowerCase());
+    }
+
+    parsedRows.push({
+      rowNum: r + 1,
+      noTransaksi,
+      namaBank,
+      tanggalTransaksi,
+      keterangan,
+      jumlahTransaksi: isNaN(jumlahTransaksi) ? 0 : jumlahTransaksi,
+      buktiPengajuan: pengajuan || null,
+      buktiBayar: bayar || null,
+      invoice: inv || null,
+      isValid: !error,
+      errorMsg: error
+    });
+  }
+
+  if (!parsedRows.length) {
+    toast('Tidak ada data baris transaksi yang dapat dibaca.');
+    return;
+  }
+
+  showImportPreviewModal(parsedRows);
 }
 
-function showApiConfigModal() {
-  const currentUrl = getActiveApiUrl();
-  const prevModal = $('api-modal');
+function showImportPreviewModal(parsedRows) {
+  const validCount = parsedRows.filter(r => r.isValid).length;
+  const invalidCount = parsedRows.filter(r => !r.isValid).length;
+  importedRowsToSave = parsedRows.filter(r => r.isValid);
+
+  const prevModal = $('import-modal');
   if (prevModal) prevModal.remove();
 
+  const previewTableRows = parsedRows.slice(0, 50).map((r, i) => `
+    <tr style="${r.isValid ? '' : 'background:#fff1f2;'}">
+      <td>${i + 1}</td>
+      <td><b>${escapeHtml(r.noTransaksi || '-')}</b></td>
+      <td>${escapeHtml(r.namaBank || '-')}</td>
+      <td>${escapeHtml(r.tanggalTransaksi || '-')}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(r.keterangan || '-')}</td>
+      <td class="amount">${rupiah(r.jumlahTransaksi)}</td>
+      <td>
+        ${r.isValid ? '<span class="badge complete">✓ Valid</span>' : `<span class="badge empty" title="${escapeHtml(r.errorMsg)}">✕ ${escapeHtml(r.errorMsg)}</span>`}
+      </td>
+    </tr>
+  `).join('');
+
   document.body.insertAdjacentHTML('beforeend', `
-    <div class="modal-bg" id="api-modal" onclick="if(event.target===this)closeApiModal()">
-      <div class="modal" style="max-width:520px;">
+    <div class="modal-bg" id="import-modal" onclick="if(event.target===this)closeImportModal()">
+      <div class="modal modal-lg">
         <header>
           <div>
-            <div class="eyebrow">PENGATURAN API</div>
-            <h2>Konfigurasi Backend API</h2>
+            <div class="eyebrow">IMPORT TRANSAKSI EXCEL — ${escapeHtml(getActiveCompanyName())}</div>
+            <h2>Pratinjau Data Import</h2>
           </div>
-          <button class="close" type="button" onclick="closeApiModal()">×</button>
+          <button class="close" type="button" onclick="closeImportModal()">×</button>
         </header>
         <div class="form">
-          <p style="margin:0 0 14px;color:var(--muted);font-size:12px;line-height:1.5">
-            Masukkan URL Web App Google Apps Script backend Anda (hasil Deploy as Web App dengan akses Anyone):
-          </p>
-          <label style="margin-bottom:14px;">
-            URL Web App Google Apps Script (/exec) <em>*</em>
-            <input id="cfg-api-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" value="${currentUrl}" style="width:100%;">
-          </label>
-          <div class="modal-foot" style="padding:14px 0 0;margin-top:16px;">
-            <span></span>
+          <div class="preview-summary">
+            <div class="summary-badge summary-valid">✓ ${validCount} Transaksi Siap Disimpan ke ${escapeHtml(getCompanyObj(currentCompanyKey).shortName)}</div>
+            ${invalidCount > 0 ? `<div class="summary-badge summary-invalid">⚠ ${invalidCount} Data Tidak Valid (Dilewati)</div>` : ''}
+            <div style="font-size:11px;color:var(--muted);margin-left:auto;align-self:center;">Total terbaca: ${parsedRows.length} baris</div>
+          </div>
+          <div class="table-scroll" style="max-height:360px;border:1px solid var(--line);border-radius:8px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>No Transaksi</th>
+                  <th>Nama Bank</th>
+                  <th>Tanggal</th>
+                  <th>Keterangan</th>
+                  <th>Jumlah</th>
+                  <th>Status Validasi</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${previewTableRows}
+              </tbody>
+            </table>
+          </div>
+          ${parsedRows.length > 50 ? `<p style="font-size:11px;color:var(--muted);margin:8px 0 0;">Menampilkan 50 data pertama dari total ${parsedRows.length} data.</p>` : ''}
+          <div class="modal-foot" style="padding:16px 0 0;margin-top:16px;">
+            <span style="font-size:11px;color:var(--muted)">Data akan langsung disimpan ke sheet ${escapeHtml(getCompanyObj(currentCompanyKey).shortName)}</span>
             <div style="display:flex;gap:8px;">
-              <button type="button" class="secondary" onclick="closeApiModal()">Tutup</button>
-              <button type="button" class="primary" onclick="saveApiUrl()">Simpan & Hubungkan</button>
+              <button type="button" class="secondary" onclick="closeImportModal()">Batal</button>
+              <button type="button" class="primary" id="btn-save-import" onclick="saveImportedData()" ${validCount === 0 ? 'disabled' : ''}>Simpan ${validCount} Data</button>
             </div>
           </div>
         </div>
@@ -782,55 +1318,344 @@ function showApiConfigModal() {
   `);
 }
 
-function closeApiModal() {
-  const m = $('api-modal');
+function closeImportModal() {
+  const m = $('import-modal');
   if (m) m.remove();
+  importedRowsToSave = [];
 }
 
-function saveApiUrl() {
-  const input = $('cfg-api-url');
-  if (!input) return;
-  const val = input.value.trim();
-  if (!val) {
-    toast('URL API tidak boleh kosong.');
+function saveImportedData() {
+  if (!importedRowsToSave.length) {
+    toast('Tidak ada data valid untuk disimpan.');
     return;
   }
-  localStorage.setItem('VERIFIKASI_API_URL', val);
-  closeApiModal();
-  toast('URL API disimpan. Memuat data...');
-  load();
-}
+  const btn = $('btn-save-import');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin">⟳</span> Menyimpan ke Google Sheets...';
+  }
 
-function load() {
-  if (!isAppsScript && !getActiveApiUrl()) {
-    isLoading = false;
-    loadError = null;
-    data = [];
-    banks = [];
+  const targetCompKey = currentCompanyKey;
+  const payloadRows = importedRowsToSave.map(r => ({
+    noTransaksi: r.noTransaksi,
+    namaBank: r.namaBank,
+    tanggalTransaksi: r.tanggalTransaksi,
+    keterangan: r.keterangan,
+    jumlahTransaksi: r.jumlahTransaksi,
+    buktiPengajuan: r.buktiPengajuan,
+    buktiBayar: r.buktiBayar,
+    invoice: r.invoice
+  }));
+
+  call('importTransactions', [payloadRows, targetCompKey]).then(result => {
+    if (Array.isArray(result) && result.length) {
+      const existing = companyCache[targetCompKey] ? companyCache[targetCompKey].data : [];
+      companyCache[targetCompKey].data = [...result, ...existing];
+    }
+    closeImportModal();
     render();
-    return;
-  }
-  isLoading = true;
-  loadError = null;
-  render();
-  Promise.all([call('getData'), call('getBanks')]).then(values => {
-    data = values[0] || [];
-    banks = values[1] || [];
-    isLoading = false;
-    loadError = null;
-    render();
-  }).catch(error => {
-    isLoading = false;
-    loadError = error && error.message ? error.message : 'Gagal terhubung ke server.';
-    render();
-    toast('Gagal terhubung ke server.');
+    toast(`Berhasil mengimpor ${payloadRows.length} transaksi ke ${getCompanyObj(targetCompKey).name}.`);
+    dashboardStats = null;
+  }).catch(err => {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = `Simpan ${importedRowsToSave.length} Data`;
+    }
+    toast('Gagal menyimpan import: ' + (err.message || String(err)));
   });
 }
 
-// 1. Tampilkan UI seketika saat halaman dibuka tanpa menunggu backend
+// ==========================================================================
+// FITUR EXPORT EXCEL & PDF (BERDASARKAN PERUSAHAAN AKTIF)
+// ==========================================================================
+function getFilterSummaryLabels() {
+  const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const bankLabel = filter.bank === 'all' ? 'Semua Bank' : filter.bank;
+  let periodeLabel = 'Semua Periode';
+  if (filter.month !== '0' && filter.year !== 'all') {
+    periodeLabel = `${monthNames[Number(filter.month)]} ${filter.year}`;
+  } else if (filter.month !== '0') {
+    periodeLabel = `Bulan ${monthNames[Number(filter.month)]}`;
+  } else if (filter.year !== 'all') {
+    periodeLabel = `Tahun ${filter.year}`;
+  }
+  const tanggalCetak = new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+  return { bankLabel, periodeLabel, tanggalCetak };
+}
+
+function exportToExcel() {
+  const filtered = getFilteredData();
+  const compName = getActiveCompanyName();
+
+  if (!filtered.length) {
+    toast('Tidak ada data untuk diexport.');
+    return;
+  }
+  if (typeof XLSX === 'undefined') {
+    toast('Library Excel belum siap. Silakan muat ulang halaman.');
+    return;
+  }
+
+  const { bankLabel, periodeLabel, tanggalCetak } = getFilterSummaryLabels();
+  const total = filtered.reduce((s, t) => s + (parseNominal(t.jumlahTransaksi) || 0), 0);
+
+  const aoa = [
+    [compName],
+    ['LAPORAN VERIFIKASI FILLING'],
+    [`Bank: ${bankLabel}   |   Periode: ${periodeLabel}   |   Tanggal Unduh: ${tanggalCetak}   |   Total Data: ${filtered.length} Transaksi`],
+    [],
+    ['No', 'No. Transaksi', 'Nama Bank', 'Tanggal Transaksi', 'Keterangan', 'Jumlah Transaksi', 'Bukti Pengajuan', 'Bukti Bayar', 'Invoice', 'Status Bukti']
+  ];
+
+  filtered.forEach((t, index) => {
+    const amt = parseNominal(t.jumlahTransaksi) || 0;
+    aoa.push([
+      index + 1,
+      t.noTransaksi,
+      t.namaBank,
+      t.tanggalTransaksi,
+      t.keterangan || '',
+      amt,
+      t.buktiPengajuan ? (t.buktiPengajuan.fileName || t.buktiPengajuan.name || 'Ada Dokumen') : '-',
+      t.buktiBayar ? (t.buktiBayar.fileName || t.buktiBayar.name || 'Ada Dokumen') : '-',
+      t.invoice ? (t.invoice.fileName || t.invoice.name || 'Ada Dokumen') : '-',
+      t.statusBukti
+    ]);
+  });
+
+  aoa.push(['', '', '', '', 'TOTAL', total, '', '', '', '']);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [
+    { wch: 6 },
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 16 },
+    { wch: 32 },
+    { wch: 20 },
+    { wch: 22 },
+    { wch: 22 },
+    { wch: 22 },
+    { wch: 18 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Laporan Verifikasi');
+  const sanitizedCompName = compName.replace(/\s+/g, '_');
+  const filename = `Laporan_Verifikasi_${sanitizedCompName}_${filter.bank === 'all' ? 'SemuaBank' : filter.bank}_${filter.year === 'all' ? 'SemuaTahun' : filter.year}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  toast(`File Excel ${compName} berhasil diunduh.`);
+}
+
+function exportToPdf() {
+  const filtered = getFilteredData();
+  const compName = getActiveCompanyName();
+
+  if (!filtered.length) {
+    toast('Tidak ada data untuk diexport.');
+    return;
+  }
+  if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
+    toast('Library PDF belum siap. Silakan periksa koneksi internet.');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const { bankLabel, periodeLabel, tanggalCetak } = getFilterSummaryLabels();
+  const total = filtered.reduce((s, t) => s + (parseNominal(t.jumlahTransaksi) || 0), 0);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(15, 23, 42);
+  doc.text(compName, 14, 15);
+
+  doc.setFontSize(11);
+  doc.setTextColor(37, 99, 235);
+  doc.text('LAPORAN VERIFIKASI FILLING', 14, 21);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Bank: ${bankLabel}   |   Periode: ${periodeLabel}   |   Tanggal Cetak: ${tanggalCetak}   |   Total: ${filtered.length} Transaksi`, 14, 27);
+
+  const tableBody = filtered.map((t, index) => [
+    index + 1,
+    t.noTransaksi,
+    t.namaBank,
+    t.tanggalTransaksi,
+    t.keterangan || '-',
+    rupiah(t.jumlahTransaksi),
+    t.buktiPengajuan ? 'Ada' : '-',
+    t.buktiBayar ? 'Ada' : '-',
+    t.invoice ? 'Ada' : '-',
+    t.statusBukti
+  ]);
+
+  doc.autoTable({
+    startY: 31,
+    head: [['No', 'No. Transaksi', 'Bank', 'Tanggal', 'Keterangan', 'Jumlah Transaksi', 'Pengajuan', 'Bayar', 'Invoice', 'Status']],
+    body: tableBody,
+    foot: [['', '', '', '', 'TOTAL', rupiah(total), '', '', '', '']],
+    theme: 'grid',
+    styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+    footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 32 },
+      2: { cellWidth: 24 },
+      3: { cellWidth: 22 },
+      4: { cellWidth: 50 },
+      5: { cellWidth: 34, halign: 'right' },
+      6: { cellWidth: 20, halign: 'center' },
+      7: { cellWidth: 20, halign: 'center' },
+      8: { cellWidth: 20, halign: 'center' },
+      9: { cellWidth: 34, halign: 'center' }
+    }
+  });
+
+  const sanitizedCompName = compName.replace(/\s+/g, '_');
+  const filename = `Laporan_Verifikasi_${sanitizedCompName}_${filter.bank === 'all' ? 'SemuaBank' : filter.bank}_${filter.year === 'all' ? 'SemuaTahun' : filter.year}.pdf`;
+  doc.save(filename);
+  toast(`File PDF ${compName} berhasil diunduh.`);
+}
+
+function exportHistorisToExcel() {
+  const filtered = getFilteredHistoris();
+  if (!filtered.length) {
+    toast('Tidak ada data historis untuk diexport.');
+    return;
+  }
+  if (typeof XLSX === 'undefined') {
+    toast('Library Excel belum siap.');
+    return;
+  }
+
+  const aoa = [
+    ['PATRIA MENARA ABADI & GRUP'],
+    ['AUDIT TRAIL HISTORIS PENGHAPUSAN TRANSAKSI'],
+    [`Tanggal Unduh: ${new Date().toLocaleString('id-ID')}   |   Total Data: ${filtered.length} Log`],
+    [],
+    ['No', 'Waktu Penghapusan', 'Perusahaan', 'No. Transaksi', 'Bank', 'Tanggal Transaksi', 'Keterangan', 'Jumlah Transaksi', 'Status Terakhir', 'Email Akun', 'Perangkat / Device', 'Aktivitas']
+  ];
+
+  filtered.forEach((h, idx) => {
+    aoa.push([
+      idx + 1,
+      h.timestamp,
+      h.perusahaan,
+      h.noTransaksi,
+      h.namaBank,
+      h.tanggalTransaksi,
+      h.keterangan,
+      parseNominal(h.jumlahTransaksi) || 0,
+      h.statusBukti,
+      h.email,
+      h.device,
+      h.aktivitas
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Audit Historis');
+  XLSX.writeFile(wb, `Historis_Penghapusan_Transaksi_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  toast('Log historis berhasil diunduh.');
+}
+
+// ==========================================================================
+// DATA LOADERS & INITIALIZATION
+// ==========================================================================
+function loadCurrentCompanyData(forceReload = false) {
+  const compKey = currentCompanyKey;
+  if (!isAppsScript && !getActiveApiUrl()) {
+    companyCache[compKey] = { data: [], loaded: true, loading: false };
+    render();
+    return;
+  }
+
+  if (!forceReload && companyCache[compKey].loaded) {
+    render();
+    return;
+  }
+
+  companyCache[compKey].loading = true;
+  loadError = null;
+  render();
+
+  Promise.all([
+    call('getData', [compKey]),
+    banks.length ? Promise.resolve(banks) : call('getBanks')
+  ]).then(([txList, bankList]) => {
+    companyCache[compKey] = {
+      data: txList || [],
+      loaded: true,
+      loading: false
+    };
+    if (Array.isArray(bankList) && bankList.length) {
+      banks = bankList;
+    }
+    loadError = null;
+    render();
+  }).catch(error => {
+    companyCache[compKey].loading = false;
+    loadError = error && error.message ? error.message : 'Gagal terhubung ke server.';
+    render();
+    toast('Gagal memuat data: ' + (error && error.message ? error.message : 'Koneksi error'));
+  });
+}
+
+function loadDashboardStats() {
+  if (!isAppsScript && !getActiveApiUrl()) {
+    dashboardStats = null;
+    isDashboardLoading = false;
+    render();
+    return;
+  }
+
+  isDashboardLoading = true;
+  render();
+
+  call('getDashboardStats').then(res => {
+    dashboardStats = res;
+    isDashboardLoading = false;
+    render();
+  }).catch(err => {
+    isDashboardLoading = false;
+    render();
+    toast('Gagal memuat statistik dashboard: ' + (err && err.message ? err.message : 'Error'));
+  });
+}
+
+function loadHistorisData() {
+  if (!isAppsScript && !getActiveApiUrl()) {
+    historisData = [];
+    isHistorisLoading = false;
+    render();
+    return;
+  }
+
+  isHistorisLoading = true;
+  render();
+
+  call('getHistorisData').then(res => {
+    historisData = Array.isArray(res) ? res : [];
+    isHistorisLoading = false;
+    render();
+  }).catch(err => {
+    isHistorisLoading = false;
+    render();
+    toast('Gagal memuat data historis: ' + (err && err.message ? err.message : 'Error'));
+  });
+}
+
+// 1. Render UI awal seketika tanpa menunggu backend (instant display)
 render();
-// 2. Muat data dari backend di latar belakang
-load();
+
+// 2. Ambil data perusahaan aktif di latar belakang
+loadCurrentCompanyData();
 </script>
 </body>
 </html>
