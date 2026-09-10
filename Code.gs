@@ -41,14 +41,23 @@ function doPost(e) {
   try {
     let payload = {};
     if (e && e.postData && e.postData.contents) {
-      payload = JSON.parse(e.postData.contents);
+      try {
+        payload = JSON.parse(e.postData.contents);
+      } catch (jsonErr) {
+        payload = e.parameter || {};
+      }
     } else if (e && e.parameter) {
       payload = e.parameter;
     }
-    const action = payload.action;
-    const args = payload.args || [];
-    let result;
 
+    const action = payload.action;
+    let args = payload.args || [];
+    if (typeof args === 'string') {
+      try { args = JSON.parse(args); } catch (e) {}
+    }
+    if (!Array.isArray(args)) args = [args];
+
+    let result;
     if (action === 'getData') {
       result = getData(args[0]);
     } else if (action === 'getBanks') {
@@ -130,14 +139,14 @@ function getTransactionSheet_(companyKey) {
   const spreadsheet = openSpreadsheet_();
   let sheet = spreadsheet.getSheetByName(config.sheetName);
 
-  // Fallback untuk PATRIA: jika sheet TRANSAKSI_PATRIA belum ada, cek sheet 'Transaksi' yang sudah ada
+  // Fallback untuk PATRIA: jika sheet TRANSAKSI_PATRIA belum ada, cek sheet 'Transaksi' lama
   if (!sheet && config.key === 'PATRIA') {
     sheet = spreadsheet.getSheetByName('Transaksi');
     if (sheet) {
       try {
         sheet.setName(config.sheetName);
       } catch (e) {
-        // Jika rename dibatasi, gunakan sheet Transaksi apa adanya
+        // Gunakan sheet Transaksi apa adanya jika rename dibatasi
       }
     }
   }
@@ -148,6 +157,7 @@ function getTransactionSheet_(companyKey) {
     sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+    sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat('@');
   } else {
     ensureHeaders_(sheet);
   }
@@ -172,7 +182,6 @@ function ensureHeaders_(sheet) {
   if (lastCol > 0) {
     const current = sheet.getRange(1, 1, 1, Math.max(lastCol, HEADERS.length + 1)).getValues()[0];
     const firstHeader = String(current[0] || '').trim().toLowerCase();
-    // Jika kolom pertama di Spreadsheet masih bernama 'id', hapus kolom ID tersebut agar database bersih dari ID internal
     if (firstHeader === 'id') {
       sheet.deleteColumn(1);
     }
@@ -216,7 +225,6 @@ function addTransaction(payload, companyKey) {
   const compConfig = getCompanyConfig_(companyKey);
   const sheet = getTransactionSheet_(compConfig.key);
 
-  // Pengecekan duplikasi hanya membaca kolom nomor transaksi (jauh lebih cepat)
   if (isTransactionNumberExistsInSheet_(sheet, input.noTransaksi)) {
     throw new Error('No transaksi "' + input.noTransaksi + '" sudah digunakan pada ' + compConfig.name + '.');
   }
@@ -301,7 +309,7 @@ function deleteTransaction(id, companyKey, clientInfo) {
   ];
 
   // LANGKAH PENTING: Catat ke sheet HISTORIS TERLEBIH DAHULU!
-  // Jika pencatatan histori gagal, jangan hapus transaksi.
+  // Jika pencatatan histori gagal, batalkan penghapusan transaksi demi integritas data.
   const historisSheet = getHistorisSheet_();
   try {
     historisSheet.appendRow(historyRow);
@@ -366,15 +374,29 @@ function getDashboardStats() {
 
     if (sheet && sheet.getLastRow() > 1) {
       const numRows = sheet.getLastRow() - 1;
-      const dataValues = sheet.getRange(2, 1, numRows, Math.min(sheet.getLastColumn(), 10)).getValues();
+      const dataValues = sheet.getRange(2, 1, numRows, Math.min(sheet.getLastColumn(), 14)).getValues();
 
       for (let i = 0; i < dataValues.length; i++) {
         const row = dataValues[i];
-        if (!String(row[0] || '').trim()) continue;
+        let offset = 0;
+        if (row.length >= 15 && isNaN(parseNominal_(row[4])) && !isNaN(parseNominal_(row[5]))) {
+          offset = 1;
+        }
+        const noTrans = String(row[offset] || '').trim();
+        if (!noTrans) continue;
+
         total++;
-        const amt = parseNominal_(row[4]) || 0;
+        const amt = parseNominal_(row[offset + 4]) || 0;
         amount += amt;
-        const status = String(row[8] || '').trim().toUpperCase();
+
+        let status = String(row[offset + 8] || '').trim().toUpperCase();
+        if (!status) {
+          const doc1 = row[offset + 5];
+          const doc2 = row[offset + 6];
+          const doc3 = row[offset + 7];
+          status = calculateStatus([doc1, doc2, doc3]);
+        }
+
         if (status === 'BUKTI LENGKAP') {
           lengkap++;
         } else if (status === 'SEBAGIAN LENGKAP') {
@@ -423,6 +445,7 @@ function getDashboardStats() {
   return stats;
 }
 
+// IMPORT TRANSAKSI BATCH OPTIMAL (SATU REQUEST SETVALUES)
 function importTransactions(rows, companyKey) {
   if (!Array.isArray(rows) || !rows.length) {
     throw new Error('Tidak ada data transaksi untuk diimpor.');
@@ -430,13 +453,19 @@ function importTransactions(rows, companyKey) {
   const compConfig = getCompanyConfig_(companyKey);
   const sheet = getTransactionSheet_(compConfig.key);
 
-  const existingValues = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).getValues();
+  // Ambil daftar No Transaksi yang sudah ada di sheet untuk validasi duplikasi cepat
+  const lastRow = sheet.getLastRow();
   const existingSet = new Set();
-  for (let i = 1; i < existingValues.length; i++) {
-    const val = String(existingValues[i][0] || '').trim().toLowerCase();
-    if (val) existingSet.add(val);
+  if (lastRow > 1) {
+    const existingValues = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < existingValues.length; i++) {
+      const val = String(existingValues[i][0] || '').trim().toLowerCase();
+      if (val) existingSet.add(val);
+    }
   }
 
+  // Pre-fetch bank list sekali saja agar performa import cepat
+  const banks = getBanks();
   const batchRows = [];
   const resultTransactions = [];
   const now = new Date();
@@ -453,7 +482,7 @@ function importTransactions(rows, companyKey) {
     }
     existingSet.add(noTransLower);
 
-    const input = validateTransactionPayload_(item);
+    const input = validateTransactionPayload_(item, banks);
     const docs = {
       buktiPengajuan: item.buktiPengajuan && typeof item.buktiPengajuan === 'object' ? item.buktiPengajuan : (item.buktiPengajuan ? { fileName: String(item.buktiPengajuan), fileUrl: String(item.linkBuktiPengajuan || '') } : null),
       buktiBayar: item.buktiBayar && typeof item.buktiBayar === 'object' ? item.buktiBayar : (item.buktiBayar ? { fileName: String(item.buktiBayar), fileUrl: String(item.linkBuktiBayar || '') } : null),
@@ -468,6 +497,11 @@ function importTransactions(rows, companyKey) {
   if (batchRows.length > 0) {
     const startRow = sheet.getLastRow() + 1;
     sheet.getRange(startRow, 1, batchRows.length, HEADERS.length).setValues(batchRows);
+    // Pastikan kolom No Transaksi diformat sebagai plain text agar 0 di depan tidak hilang
+    try {
+      sheet.getRange(startRow, 1, batchRows.length, 1).setNumberFormat('@');
+    } catch (e) {}
+    SpreadsheetApp.flush();
   }
 
   return resultTransactions;
@@ -493,21 +527,38 @@ function calculateStatus(documentValues) {
   return count === 3 ? 'BUKTI LENGKAP' : count > 0 ? 'SEBAGIAN LENGKAP' : 'TIDAK ADA BUKTI';
 }
 
-function validateTransactionPayload_(payload) {
+function validateTransactionPayload_(payload, bankList) {
   if (!payload || typeof payload !== 'object') throw new Error('Data transaksi tidak valid.');
   const noTransaksi = String(payload.noTransaksi || '').trim();
-  const namaBank = String(payload.namaBank || '').trim();
+  let namaBank = String(payload.namaBank || '').trim();
   const tanggalTransaksi = String(payload.tanggalTransaksi || '').trim();
   const keterangan = String(payload.keterangan || '').trim();
   const jumlahTransaksi = parseNominal_(payload.jumlahTransaksi);
+
   if (!noTransaksi) throw new Error('No transaksi wajib diisi.');
   if (!namaBank) throw new Error('Nama bank wajib diisi.');
   if (!tanggalTransaksi || isNaN(new Date(tanggalTransaksi).getTime())) throw new Error('Tanggal transaksi tidak valid.');
   if (!isFinite(jumlahTransaksi) || jumlahTransaksi <= 0) throw new Error('Jumlah transaksi harus berupa angka lebih besar dari 0.');
-  const banks = getBanks();
-  if (banks.length && banks.indexOf(namaBank) === -1) throw new Error('Nama bank tidak tersedia pada sheet Bank.');
+
+  const banks = bankList || getBanks();
+  if (banks && banks.length) {
+    const match = banks.find(b => b.toLowerCase() === namaBank.toLowerCase());
+    if (match) {
+      namaBank = match;
+    }
+  }
+
   ['buktiPengajuan', 'buktiBayar', 'invoice'].forEach(key => validateDocument_(payload[key], key));
-  return { noTransaksi, namaBank, tanggalTransaksi, keterangan, jumlahTransaksi, buktiPengajuan: payload.buktiPengajuan || null, buktiBayar: payload.buktiBayar || null, invoice: payload.invoice || null };
+  return {
+    noTransaksi,
+    namaBank,
+    tanggalTransaksi,
+    keterangan,
+    jumlahTransaksi,
+    buktiPengajuan: payload.buktiPengajuan || null,
+    buktiBayar: payload.buktiBayar || null,
+    invoice: payload.invoice || null
+  };
 }
 
 function validateDocument_(document, key) {
@@ -583,9 +634,7 @@ function saveFileToDrive_(payload, input, transactionNumber, documentKey, compan
   const file = documentFolder.createFile(blob);
   try {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  } catch (e) {
-    // Tetap lanjutkan jika domain membatasi sharing publik
-  }
+  } catch (e) {}
   return file;
 }
 
@@ -674,9 +723,19 @@ function rowToTransaction_(row) {
     updatedAt: updatedAt
   };
 }
+
 function extractDriveId_(url) { const match = String(url || '').match(/[-\w]{20,}/); return match ? match[0] : ''; }
-function formatDateInput_(value) { const date = value instanceof Date ? value : new Date(value); return Utilities.formatDate(date, Session.getScriptTimeZone() || 'Asia/Jakarta', 'yyyy-MM-dd'); }
-function toIso_(value) { const date = value instanceof Date ? value : new Date(value); return isNaN(date.getTime()) ? '' : date.toISOString(); }
+function formatDateInput_(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (isNaN(date.getTime())) return String(value || '');
+  return Utilities.formatDate(date, Session.getScriptTimeZone() || 'Asia/Jakarta', 'yyyy-MM-dd');
+}
+function toIso_(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  return isNaN(date.getTime()) ? '' : date.toISOString();
+}
 
 function isTransactionNumberExistsInSheet_(sheet, number) {
   const lastRow = sheet.getLastRow();
@@ -705,10 +764,14 @@ function findRowByTransactionNumberInSheet_(sheet, number) {
 }
 
 function sheetUpdateRow_(sheet, rowNumber, values) { sheet.getRange(rowNumber, 1, 1, values.length).setValues([values]); }
+
 function parseNominal_(val) {
-  if (typeof val === 'number') return val;
-  let s = String(val || '').trim();
+  if (typeof val === 'number') return isFinite(val) ? val : NaN;
+  if (val === null || val === undefined) return NaN;
+  let s = String(val).trim();
+  s = s.replace(/^(?:Rp|IDR)\.?\s*/i, '').replace(/\s/g, '');
   if (!s) return NaN;
+
   if (s.includes('.') && s.includes(',')) {
     if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
       s = s.replace(/\./g, '').replace(',', '.');
@@ -716,7 +779,22 @@ function parseNominal_(val) {
       s = s.replace(/,/g, '');
     }
   } else if (s.includes(',')) {
-    s = s.replace(',', '.');
+    if ((s.match(/,/g) || []).length > 1) {
+      s = s.replace(/,/g, '');
+    } else {
+      s = s.replace(',', '.');
+    }
+  } else if (s.includes('.')) {
+    if ((s.match(/\./g) || []).length > 1) {
+      s = s.replace(/\./g, '');
+    } else {
+      const parts = s.split('.');
+      if (parts[1] && parts[1].length === 3 && parts[0].length >= 1) {
+        s = s.replace('.', '');
+      }
+    }
   }
-  return Number(s);
+
+  const num = Number(s);
+  return isFinite(num) ? num : NaN;
 }
