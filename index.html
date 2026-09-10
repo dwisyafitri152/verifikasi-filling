@@ -206,7 +206,9 @@ const COMPANIES_LIST = [
   { key: 'PATRIA', name: 'PATRIA MENARA ABADI', shortName: 'Patria' },
   { key: 'ARRAH', name: 'ARRAH ENERGI INDONESIA', shortName: 'Arrah' },
   { key: 'ABIUMI', name: 'ABIUMI REJEKI BERSAMA', shortName: 'Abiumi' },
-  { key: 'LANGGENG', name: 'LANGGENG NIAGA GEMILANG', shortName: 'Langgeng' }
+  { key: 'LANGGENG', name: 'LANGGENG NIAGA GEMILANG', shortName: 'Langgeng' },
+  { key: 'REGINDO', name: 'REGINDO', shortName: 'Regindo' },
+  { key: 'IMPRUVE', name: 'IMPRUVE.ID', shortName: 'Impruve.id' }
 ];
 
 // STATE APLIKASI
@@ -218,7 +220,9 @@ const companyCache = {
   PATRIA: { data: [], loaded: false, loading: false },
   ARRAH: { data: [], loaded: false, loading: false },
   ABIUMI: { data: [], loaded: false, loading: false },
-  LANGGENG: { data: [], loaded: false, loading: false }
+  LANGGENG: { data: [], loaded: false, loading: false },
+  REGINDO: { data: [], loaded: false, loading: false },
+  IMPRUVE: { data: [], loaded: false, loading: false }
 };
 
 let banks = [];
@@ -367,6 +371,10 @@ function call(name, args = []) {
       queryUrl += '&companyKey=' + encodeURIComponent(args[0]) + '&company=' + encodeURIComponent(args[0]);
     } else if (name === 'getTransactionById' && args[0]) {
       queryUrl += '&id=' + encodeURIComponent(args[0]) + (args[1] ? '&companyKey=' + encodeURIComponent(args[1]) : '');
+    } else if (name === 'getDashboardStats' && args[0]) {
+      queryUrl += '&companyKey=' + encodeURIComponent(args[0]) + '&company=' + encodeURIComponent(args[0]);
+    } else if (name === 'getHistorisData' && args[0]) {
+      queryUrl += '&companyKey=' + encodeURIComponent(args[0]) + '&company=' + encodeURIComponent(args[0]);
     }
     return fetch(queryUrl)
       .then(res => {
@@ -421,13 +429,19 @@ function switchCompany(companyKey) {
   currentView = 'TRANSAKSI';
   toggleSidebar(false);
   filter.q = '';
+  if (!companyCache[companyKey]) {
+    companyCache[companyKey] = { data: [], loaded: false, loading: false };
+  }
   render();
-  loadCurrentCompanyData();
+  loadCurrentCompanyData(true);
 }
 
 function switchView(viewName) {
   currentView = viewName;
   toggleSidebar(false);
+  if (viewName === 'HISTORIS') {
+    historisFilter.company = currentCompanyKey;
+  }
   render();
   if (viewName === 'DASHBOARD') {
     loadDashboardStats();
@@ -737,7 +751,7 @@ function renderDashboardViewHtml() {
     <div class="intro">
       <div>
         <div class="eyebrow">DASHBOARD EKSEKUTIF</div>
-        <h2>Persentase Kelengkapan 4 Perusahaan</h2>
+        <h2>Persentase Kelengkapan Semua Perusahaan</h2>
         <p>Ringkasan perbandingan status kelengkapan bukti transaksi keuangan yang dihitung langsung dari Google Sheets secara aktual.</p>
       </div>
       <div class="action-buttons">
@@ -746,7 +760,7 @@ function renderDashboardViewHtml() {
     </div>
 
     <section class="stats">
-      ${stat('Konsolidasi Transaksi', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : overall.total, 'Semua 4 perusahaan')}
+      ${stat('Konsolidasi Transaksi', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : overall.total, `Semua ${COMPANIES_LIST.length} perusahaan`)}
       ${stat('Total Bukti Lengkap', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : overall.lengkap + ` (${overall.persentaseLengkap}%)`, 'terverifikasi')}
       ${stat('Sebagian Lengkap', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : overall.sebagian + ` (${overall.persentaseSebagian}%)`, 'perlu dilengkapi')}
       ${stat('Tidak Ada Bukti', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : overall.tidakAda + ` (${overall.persentaseTidakAda}%)`, 'segera tindak lanjuti')}
@@ -1823,7 +1837,7 @@ function loadDashboardStats() {
   isDashboardLoading = true;
   render();
 
-  call('getDashboardStats').then(res => {
+  call('getDashboardStats', [currentCompanyKey]).then(res => {
     dashboardStats = res;
     isDashboardLoading = false;
     render();
@@ -1846,7 +1860,7 @@ function loadHistorisData() {
   isHistorisLoading = true;
   render();
 
-  call('getHistorisData').then(res => {
+  call('getHistorisData', [historisFilter.company || currentCompanyKey]).then(res => {
     historisData = Array.isArray(res) ? res : [];
     isHistorisLoading = false;
     render();
