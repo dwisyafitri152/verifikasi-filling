@@ -23,8 +23,9 @@ const HISTORIS_HEADERS = [
 ];
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.action) {
-    return handleApiRequest_(e.parameter.action, e.parameter);
+  const paramAction = e && e.parameter ? (e.parameter.action || e.parameter.act || e.parameter.method) : null;
+  if (paramAction) {
+    return handleApiRequest_(paramAction, e.parameter);
   }
   try {
     return HtmlService.createHtmlOutputFromFile('Index')
@@ -50,7 +51,8 @@ function doPost(e) {
       payload = e.parameter;
     }
 
-    const action = payload.action;
+    const rawAction = String(payload.action || (e && e.parameter && e.parameter.action) || '').trim();
+    const act = rawAction.toLowerCase();
     let args = payload.args || [];
     if (typeof args === 'string') {
       try { args = JSON.parse(args); } catch (e) {}
@@ -58,28 +60,28 @@ function doPost(e) {
     if (!Array.isArray(args)) args = [args];
 
     let result;
-    if (action === 'getData') {
-      result = getData(args[0]);
-    } else if (action === 'getBanks') {
+    if (act === 'getdata') {
+      result = getData(args[0] || payload.companyKey || payload.company);
+    } else if (act === 'getbanks') {
       result = getBanks();
-    } else if (action === 'getTransactionById') {
-      result = getTransactionById(args[0], args[1]);
-    } else if (action === 'addTransaction') {
-      result = addTransaction(args[0], args[1]);
-    } else if (action === 'updateTransaction') {
-      result = updateTransaction(args[0], args[1], args[2]);
-    } else if (action === 'deleteTransaction') {
-      result = deleteTransaction(args[0], args[1], args[2]);
-    } else if (action === 'uploadFile') {
-      result = uploadFile(args[0], args[1]);
-    } else if (action === 'importTransactions') {
-      result = importTransactions(args[0], args[1]);
-    } else if (action === 'getDashboardStats') {
+    } else if (act === 'gettransactionbyid') {
+      result = getTransactionById(args[0] || payload.id, args[1] || payload.companyKey);
+    } else if (act === 'addtransaction') {
+      result = addTransaction(args[0] || payload.payload, args[1] || payload.companyKey);
+    } else if (act === 'updatetransaction') {
+      result = updateTransaction(args[0] || payload.id, args[1] || payload.payload, args[2] || payload.companyKey);
+    } else if (act === 'deletetransaction') {
+      result = deleteTransaction(args[0] || payload.id, args[1] || payload.companyKey, args[2] || payload.clientInfo);
+    } else if (act === 'uploadfile') {
+      result = uploadFile(args[0] || payload.payload, args[1] || payload.companyKey);
+    } else if (act === 'importtransactions') {
+      result = importTransactions(args[0] || payload.payload, args[1] || payload.companyKey);
+    } else if (act === 'getdashboardstats') {
       result = getDashboardStats();
-    } else if (action === 'getHistorisData') {
+    } else if (act === 'gethistorisdata' || act === 'gethistoris' || act === 'gethistory' || act === 'gethistorydata' || act === 'historis') {
       result = getHistorisData();
     } else {
-      throw new Error('Action tidak valid: ' + action);
+      throw new Error('Action tidak dikenal: ' + rawAction);
     }
     return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -91,19 +93,21 @@ function doPost(e) {
 
 function handleApiRequest_(action, params) {
   try {
+    const rawAction = String(action || '').trim();
+    const act = rawAction.toLowerCase();
     let result;
-    if (action === 'getData') {
+    if (act === 'getdata') {
       result = getData(params.companyKey || params.company);
-    } else if (action === 'getBanks') {
+    } else if (act === 'getbanks') {
       result = getBanks();
-    } else if (action === 'getTransactionById') {
+    } else if (act === 'gettransactionbyid') {
       result = getTransactionById(params.id, params.companyKey || params.company);
-    } else if (action === 'getDashboardStats') {
+    } else if (act === 'getdashboardstats') {
       result = getDashboardStats();
-    } else if (action === 'getHistorisData') {
+    } else if (act === 'gethistorisdata' || act === 'gethistoris' || act === 'gethistory' || act === 'gethistorydata' || act === 'historis') {
       result = getHistorisData();
     } else {
-      throw new Error('Action tidak dikenal: ' + action);
+      throw new Error('Action tidak dikenal: ' + rawAction);
     }
     return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -347,6 +351,10 @@ function getHistorisData() {
     });
   }
   return list;
+}
+
+function getHistoris() {
+  return getHistorisData();
 }
 
 // STATISTIK DASHBOARD CEPAT DARI DATA AKTUAL 4 PERUSAHAAN
