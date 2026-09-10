@@ -44,6 +44,7 @@
     .menu-toggle{display:none;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);font-size:20px;padding:0}
     .eyebrow,.kicker{font-size:10px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#94a3b8}
     .topbar h1{margin:4px 0 0;font-size:20px;letter-spacing:0.3px;color:var(--navy)}
+    .topbar-right{display:flex;align-items:center;gap:12px}
     .today{color:var(--muted);font-size:11px}
     .content{padding:28px 36px;flex:1}
     .intro{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;gap:16px;flex-wrap:wrap}
@@ -112,11 +113,13 @@
     .doc-label{font-size:10px;color:#64748b;margin-bottom:3px;font-weight:bold}
     .doc-status{font-size:10px;margin-top:5px;min-height:14px}
     .doc-current{margin-bottom:8px;padding:6px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;font-size:10px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .btn-remove-doc{border:0;background:transparent;color:var(--red);font-size:12px;padding:0 4px;font-weight:bold;cursor:pointer}
+    .btn-remove-doc:hover{color:#7f1d1d}
     .modal-foot{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-top:1px solid var(--line);gap:12px}
     .secondary{border:1px solid var(--line);border-radius:7px;padding:10px 16px;min-height:40px;background:#fff;color:var(--text);font-weight:bold}
     .toast{position:fixed;right:20px;top:20px;z-index:60;padding:13px 18px;border-radius:8px;color:#fff;background:#0f172a;box-shadow:0 10px 25px #0f172a30;max-width:min(420px,90vw);font-size:12px;line-height:1.4}
     .hidden{display:none}
-    .preview-summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+    .preview-summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
     .summary-badge{padding:8px 12px;border-radius:8px;font-size:11px;font-weight:bold;display:flex;align-items:center;gap:6px}
     .summary-valid{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
     .summary-invalid{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
@@ -139,6 +142,10 @@
     .dot-amber{background:#b45309}
     .dot-red{background:#b91c1c}
     .dash-foot{margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center}
+
+    .api-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;text-decoration:none;font-weight:bold}
+    .api-connected{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
+    .api-disconnected{background:#fef3c7;color:#b45309;border:1px solid #fde68a}
 
     @media(max-width:1100px){
       .stats{grid-template-columns:repeat(3,1fr)}
@@ -240,10 +247,14 @@ function getActiveCompanyName() {
   return getCompanyObj(currentCompanyKey).name;
 }
 
+// ROBUST PARSER NOMINAL MENDUKUNG FORMAT RUPIAH DENGAN TITIK RIBUAN ATAU KOMA DESIMAL
 const parseNominal = val => {
-  if (typeof val === 'number') return val;
-  let s = String(val || '').trim();
+  if (typeof val === 'number') return isFinite(val) ? val : NaN;
+  if (val === null || val === undefined) return NaN;
+  let s = String(val).trim();
+  s = s.replace(/^(?:Rp|IDR)\.?\s*/i, '').replace(/\s/g, '');
   if (!s) return NaN;
+
   if (s.includes('.') && s.includes(',')) {
     if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
       s = s.replace(/\./g, '').replace(',', '.');
@@ -251,9 +262,24 @@ const parseNominal = val => {
       s = s.replace(/,/g, '');
     }
   } else if (s.includes(',')) {
-    s = s.replace(',', '.');
+    if ((s.match(/,/g) || []).length > 1) {
+      s = s.replace(/,/g, '');
+    } else {
+      s = s.replace(',', '.');
+    }
+  } else if (s.includes('.')) {
+    if ((s.match(/\./g) || []).length > 1) {
+      s = s.replace(/\./g, '');
+    } else {
+      const parts = s.split('.');
+      if (parts[1] && parts[1].length === 3 && parts[0].length >= 1) {
+        s = s.replace('.', '');
+      }
+    }
   }
-  return Number(s);
+
+  const num = Number(s);
+  return isFinite(num) ? num : NaN;
 };
 
 const formatAmountInput = val => {
@@ -290,21 +316,50 @@ const toast = message => {
 };
 
 function getActiveApiUrl() {
+  if (typeof window !== 'undefined' && window.location) {
+    const urlParam = new URLSearchParams(window.location.search).get('api');
+    if (urlParam) {
+      try { localStorage.setItem('VERIFIKASI_API_URL', urlParam); } catch (e) {}
+      return urlParam;
+    }
+  }
   return CONFIG.API_URL || (typeof localStorage !== 'undefined' ? localStorage.getItem('VERIFIKASI_API_URL') : '') || '';
 }
 
+function setApiUrl(newUrl) {
+  const trimmed = String(newUrl || '').trim();
+  if (typeof localStorage !== 'undefined') {
+    if (trimmed) {
+      localStorage.setItem('VERIFIKASI_API_URL', trimmed);
+    } else {
+      localStorage.removeItem('VERIFIKASI_API_URL');
+    }
+  }
+  toast(trimmed ? 'URL Backend Google Apps Script disimpan.' : 'URL Backend direset.');
+  closeApiModal();
+  render();
+  loadCurrentCompanyData(true);
+}
+
+// ADAPTER KOMUNIKASI UNIVERSAL (GOOGLE APPS SCRIPT & GITHUB PAGES)
 function call(name, args = []) {
   if (isAppsScript) {
     return new Promise((resolve, reject) => {
+      if (!google.script.run || !google.script.run[name]) {
+        return reject(new Error('Fungsi ' + name + ' tidak tersedia pada Google Apps Script.'));
+      }
       google.script.run
         .withSuccessHandler(resolve)
         .withFailureHandler(error => reject(error))[name](...args);
     });
   }
+
   const url = getActiveApiUrl();
   if (!url) {
-    return Promise.reject(new Error('URL Backend API belum dikonfigurasi pada CONFIG.API_URL di dalam index.html.'));
+    return Promise.reject(new Error('URL Backend API belum dikonfigurasi. Silakan klik tombol Sambungkan API di pojok kanan atas.'));
   }
+
+  // Gunakan POST dengan text/plain untuk bypass CORS preflight pada Google Apps Script Web App
   return fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -317,6 +372,23 @@ function call(name, args = []) {
     .then(res => {
       if (!res.success) throw new Error(res.error || 'Terjadi kesalahan pada backend.');
       return res.data;
+    })
+    .catch(err => {
+      // Fallback otomatis ke GET untuk aksi pembacaan data jika browser mengalami redirect issue pada POST
+      const readActions = ['getDashboardStats', 'getHistorisData', 'getBanks', 'getData'];
+      if (readActions.includes(name)) {
+        let queryUrl = url + (url.includes('?') ? '&' : '?') + 'action=' + encodeURIComponent(name);
+        if (name === 'getData' && args[0]) {
+          queryUrl += '&company=' + encodeURIComponent(args[0]);
+        }
+        return fetch(queryUrl)
+          .then(res => res.json())
+          .then(res => {
+            if (!res.success) throw new Error(res.error || 'Gagal memuat data dari backend.');
+            return res.data;
+          });
+      }
+      throw err;
     });
 }
 
@@ -415,6 +487,7 @@ function getFilteredHistoris() {
   });
 }
 
+// RENDER UTAMA (SEKETIKA - INSTANT UI TANPA MENUNGGU BACKEND)
 function render() {
   const app = $('app');
   if (!app) return;
@@ -435,10 +508,11 @@ function render() {
     } else if (!isAppsScript && !getActiveApiUrl()) {
       tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">
         Belum terhubung ke backend Google Apps Script.<br>
-        <span style="font-size:11px;color:#94a3b8;display:block;margin:6px 0;">Silakan tentukan nilai <code>CONFIG.API_URL</code> di dalam file <code>index.html</code> untuk menghubungkan ke Google Sheets.</span>
+        <span style="font-size:11px;color:#94a3b8;display:block;margin:6px 0;">Silakan klik tombol <b>Hubungkan API</b> di pojok kanan atas untuk menghubungkan Google Sheets.</span>
+        <button type="button" class="btn-action" style="margin-top:8px;" onclick="openApiConfigModal()">⚙ Sambungkan API Sekarang</button>
       </td></tr>`;
     } else if (loadError) {
-      tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--red);font-size:12px;">${escapeHtml(loadError)}<br><button type="button" class="secondary" style="margin-top:12px;padding:6px 16px;font-size:11px;" onclick="loadCurrentCompanyData()">⟳ Coba Muat Ulang</button></td></tr>`;
+      tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--red);font-size:12px;">${escapeHtml(loadError)}<br><button type="button" class="secondary" style="margin-top:12px;padding:6px 16px;font-size:11px;" onclick="loadCurrentCompanyData(true)">⟳ Coba Muat Ulang</button></td></tr>`;
     } else if (filtered.length) {
       tbodyHtml = filtered.map((t, i) => row(t, i + 1)).join('');
     } else {
@@ -479,20 +553,20 @@ function render() {
           ${select('month', 'Bulan', ['Semua Bulan', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'])}
           ${select('year', 'Tahun', ['Semua Tahun', ...years(getCurrentData())])}
           ${select('bank', 'Bank', ['Semua Bank', ...banks])}
-          ${select('status', 'Status', ['Semua Status', 'Bukti Lengkap', 'Sebagian Lengkap', 'Tidak Ada Bukti'])}
+          ${select('status', 'Status', ['Semua Status', 'BUKTI LENGKAP', 'SEBAGIAN LENGKAP', 'TIDAK ADA BUKTI'])}
         </div>
       </section>
       <section class="table-wrap">
         <div class="table-head">
-          <div><div class="kicker">DATA TRANSAKSI — ${escapeHtml(currentComp.shortName.toUpperCase())}</div><h3>Daftar transaksi</h3></div>
-          <span>${isCompLoading ? 'Memuat data...' : (!isAppsScript && !getActiveApiUrl()) ? 'Belum terhubung' : filtered.length + ' transaksi ditemukan'}</span>
+          <div><div class="kicker">DATABASE TRANSAKSI</div><h3>${escapeHtml(currentComp.name)}</h3></div>
+          <span class="badge badge-gray">${filtered.length} transaksi ditampilkan</span>
         </div>
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
                 <th>No</th>
-                <th>Transaksi</th>
+                <th>No Transaksi</th>
                 <th>Bank</th>
                 <th>Tanggal</th>
                 <th>Keterangan</th>
@@ -510,8 +584,8 @@ function render() {
           </table>
         </div>
         <div class="footer">
-          <span>Menampilkan data ${escapeHtml(currentComp.name)}</span>
-          <span>Sistem Verifikasi Dokumen</span>
+          <span>Menampilkan ${filtered.length} dari total ${getCurrentData().length} transaksi ${escapeHtml(currentComp.shortName)}</span>
+          <span>Google Sheets & Google Drive Active</span>
         </div>
       </section>
     `;
@@ -521,28 +595,38 @@ function render() {
     mainContentHtml = renderHistorisViewHtml();
   }
 
+  const activeApi = getActiveApiUrl();
+  const apiStatusButton = isAppsScript
+    ? `<span class="api-badge api-connected" title="Berjalan langsung di Google Apps Script">● Google Apps Script</span>`
+    : activeApi
+      ? `<button class="api-badge api-connected" onclick="openApiConfigModal()" title="Terhubung ke Web App Google Apps Script">● Terhubung (${escapeHtml(activeApi.slice(0, 20))}...)</button>`
+      : `<button class="api-badge api-disconnected" onclick="openApiConfigModal()" title="Klik untuk menghubungkan ke Google Sheets">⚠ Sambungkan API</button>`;
+
   app.innerHTML = `
-    <div id="sidebar-overlay" class="sidebar-overlay ${isSidebarOpen ? 'open' : ''}" onclick="toggleSidebar(false)"></div>
-    <aside id="sidebar" class="sidebar ${isSidebarOpen ? 'open' : ''}">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar(false)"></div>
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
-        <div class="brand-icon">✓</div>
-        <div><strong>PATRIA MENARA ABADI</strong><small>VERIFIKASI FILLING</small></div>
+        <div class="brand-icon">📁</div>
+        <div>
+          <strong>PATRIA GROUP</strong>
+          <small>VERIFIKASI FILLING</small>
+        </div>
       </div>
 
       <div class="side-section">
         <div class="side-label">PERUSAHAAN</div>
         <div class="nav">
-          ${COMPANIES_LIST.map(comp => `
-            <button class="${currentView === 'TRANSAKSI' && currentCompanyKey === comp.key ? 'active' : ''}" onclick="switchCompany('${comp.key}')">
+          ${COMPANIES_LIST.map(c => `
+            <button class="${currentView === 'TRANSAKSI' && currentCompanyKey === c.key ? 'active' : ''}" onclick="switchCompany('${c.key}')">
               <span class="nav-icon">🏢</span>
-              <span>${escapeHtml(comp.name)}</span>
+              <span>${escapeHtml(c.name)}</span>
             </button>
           `).join('')}
         </div>
       </div>
 
       <div class="side-section">
-        <div class="side-label">SISTEM & AUDIT</div>
+        <div class="side-label">ANALITIK & KEAMANAN</div>
         <div class="nav">
           <button class="${currentView === 'DASHBOARD' ? 'active' : ''}" onclick="switchView('DASHBOARD')">
             <span class="nav-icon">📊</span>
@@ -569,7 +653,10 @@ function render() {
             <h1>${currentView === 'TRANSAKSI' ? escapeHtml(getActiveCompanyName()) : currentView === 'DASHBOARD' ? 'DASHBOARD KELENGKAPAN' : 'HISTORIS PENGHAPUSAN'}</h1>
           </div>
         </div>
-        <div class="today">▣ &nbsp; ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date())}</div>
+        <div class="topbar-right">
+          ${apiStatusButton}
+          <div class="today">▣ &nbsp; ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date())}</div>
+        </div>
       </header>
 
       <div class="content">
@@ -579,7 +666,7 @@ function render() {
   `;
 }
 
-// RENDER DASHBOARD PERSENTASE KELENGKAPAN 4 PERUSAHAAN
+// RENDER DASHBOARD PERSENTASE KELENGKAPAN 4 PERUSAHAAN (DATA AKTUAL)
 function renderDashboardViewHtml() {
   const stats = dashboardStats || {};
   const overall = stats.overall || { total: 0, amount: 0, lengkap: 0, sebagian: 0, tidakAda: 0, persentaseLengkap: 0, persentaseSebagian: 0, persentaseTidakAda: 0 };
@@ -643,11 +730,11 @@ function renderDashboardViewHtml() {
     </div>
 
     <section class="stats">
-      ${stat('Konsolidasi Transaksi', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : overall.total, 'Semua 4 perusahaan')}
-      ${stat('Total Bukti Lengkap', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : overall.lengkap + ` (${overall.persentaseLengkap}%)`, 'terverifikasi')}
-      ${stat('Sebagian Lengkap', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : overall.sebagian + ` (${overall.persentaseSebagian}%)`, 'perlu dilengkapi')}
-      ${stat('Tidak Ada Bukti', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : overall.tidakAda + ` (${overall.persentaseTidakAda}%)`, 'segera tindak lanjuti')}
-      ${stat('Total Nilai Keseluruhan', isDashboardLoading ? '<span style="color:var(--muted);font-size:15px;font-weight:normal;">Memuat...</span>' : rupiah(overall.amount), 'semua transaksi')}
+      ${stat('Konsolidasi Transaksi', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : overall.total, 'Semua 4 perusahaan')}
+      ${stat('Total Bukti Lengkap', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : overall.lengkap + ` (${overall.persentaseLengkap}%)`, 'terverifikasi')}
+      ${stat('Sebagian Lengkap', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : overall.sebagian + ` (${overall.persentaseSebagian}%)`, 'perlu dilengkapi')}
+      ${stat('Tidak Ada Bukti', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : overall.tidakAda + ` (${overall.persentaseTidakAda}%)`, 'segera tindak lanjuti')}
+      ${stat('Total Nilai Keseluruhan', isDashboardLoading ? '<span class="spin">⟳</span> Memuat...' : rupiah(overall.amount), 'semua transaksi')}
     </section>
 
     <div class="dashboard-grid">
@@ -687,7 +774,7 @@ function renderHistorisViewHtml() {
   if (isHistorisLoading) {
     tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;"><span class="spin" style="margin-right:8px;font-size:14px;">⟳</span>Sedang memuat catatan historis...</td></tr>`;
   } else if (!isAppsScript && !getActiveApiUrl()) {
-    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">Belum terhubung ke backend Google Apps Script.</td></tr>`;
+    tbodyHtml = `<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:var(--muted);font-size:12px;">Belum terhubung ke backend Google Apps Script. Silakan sambungkan API terlebih dahulu.</td></tr>`;
   } else if (filtered.length) {
     tbodyHtml = filtered.map((h, i) => `
       <tr>
@@ -714,7 +801,7 @@ function renderHistorisViewHtml() {
       <div>
         <div class="eyebrow">AUDIT TRAIL & SISTEM PENGAMANAN</div>
         <h2>Historis Penghapusan Transaksi</h2>
-        <p>Setiap transaksi yang dihapus dicatat secara permanen di sini lengkap dengan data snapshot, email akun, dan perangkat. <b>Catatan ini bersifat permanen (read-only) dan tidak dapat diubah atau dihapus oleh siapapun melalui aplikasi.</b></p>
+        <p>Setiap transaksi yang dihapus dicatat secara permanen di sini lengkap dengan data snapshot, email akun, dan perangkat. <b>Catatan ini bersifat permanen (read-only) dan tidak dapat diubah atau dihapus melalui website.</b></p>
       </div>
       <div class="action-buttons">
         <button class="btn-action" onclick="loadHistorisData()" title="Perbarui data historis">⟳ Segarkan Histori</button>
@@ -748,13 +835,13 @@ function renderHistorisViewHtml() {
               <th>Perusahaan</th>
               <th>No Transaksi</th>
               <th>Bank</th>
-              <th>Tgl Transaksi</th>
-              <th>Jumlah</th>
+              <th>Tanggal</th>
+              <th>Jumlah Transaksi</th>
               <th>Keterangan</th>
-              <th>Status Bukti</th>
+              <th>Status Terakhir</th>
               <th>Email Akun</th>
-              <th>Perangkat / Browser</th>
-              <th>Aktivitas</th>
+              <th>Perangkat</th>
+              <th>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -763,76 +850,76 @@ function renderHistorisViewHtml() {
         </table>
       </div>
       <div class="footer">
-        <span>Menampilkan log penghapusan transaksi terverifikasi</span>
-        <span>Keamanan & Integritas Data Terjamin</span>
+        <span>Catatan log tersimpan di sheet HISTORIS</span>
+        <span>Keamanan Terjamin & Permanen</span>
       </div>
     </section>
   `;
 }
 
 function stat(label, value, note) {
-  return `<article class="stat"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`;
-}
-
-function years(rows) {
-  return [...new Set(rows.map(t => (t.tanggalTransaksi || '').slice(0, 4)).filter(Boolean))];
+  return `
+    <div class="stat">
+      <small>${escapeHtml(label)}</small>
+      <strong>${value}</strong>
+      <span>${escapeHtml(note)}</span>
+    </div>
+  `;
 }
 
 function select(key, label, items) {
-  const statusMap = {
-    'Semua Status': 'all',
-    'Bukti Lengkap': 'BUKTI LENGKAP',
-    'Sebagian Lengkap': 'SEBAGIAN LENGKAP',
-    'Tidak Ada Bukti': 'TIDAK ADA BUKTI'
-  };
-  return `<label>${label}<select onchange="filter.${key}=this.value;render()">${items.map((x, i) => {
-    let value = 'all';
-    if (key === 'month') {
-      value = String(i);
-    } else if (key === 'status') {
-      value = statusMap[x] || 'all';
-    } else if (key === 'year' || key === 'bank') {
-      value = i === 0 ? 'all' : x;
-    }
-    return `<option value="${value}" ${filter[key] === value ? 'selected' : ''}>${x}</option>`;
-  }).join('')}</select></label>`;
+  return `
+    <label>${escapeHtml(label)}
+      <select onchange="filter.${key}=this.value;render()">
+        ${items.map((item, index) => {
+          const val = key === 'month' ? String(index) : (index === 0 && key !== 'month') ? 'all' : item;
+          const selected = filter[key] === val ? 'selected' : '';
+          return `<option value="${escapeHtml(val)}" ${selected}>${escapeHtml(item)}</option>`;
+        }).join('')}
+      </select>
+    </label>
+  `;
 }
 
-function row(t, i) {
-  const dateStr = t.tanggalTransaksi ? new Date(t.tanggalTransaksi).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-  const ketStr = t.keterangan ? escapeHtml(t.keterangan) : '<span class="missing">-</span>';
-  return `<tr>
-    <td>${String(i).padStart(2, '0')}</td>
-    <td><b>${escapeHtml(t.noTransaksi)}</b><br><small>Transaksi keuangan</small></td>
-    <td>${escapeHtml(t.namaBank)}</td>
-    <td>${dateStr}</td>
-    <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(t.keterangan || '')}">${ketStr}</td>
-    <td class="amount">${rupiah(t.jumlahTransaksi)}</td>
-    ${docCell(t.buktiPengajuan)}
-    ${docCell(t.buktiBayar)}
-    ${docCell(t.invoice)}
-    <td><span class="badge ${t.statusBukti === 'BUKTI LENGKAP' ? 'complete' : t.statusBukti === 'SEBAGIAN LENGKAP' ? 'partial' : 'empty'}">${t.statusBukti}</span></td>
-    <td>
-      <div class="actions">
-        <button class="edit" onclick="openForm('${escapeHtml(t.noTransaksi)}')" title="Edit transaksi">✎</button>
-        <button class="delete" onclick="confirmDelete('${escapeHtml(t.noTransaksi)}')" title="Hapus transaksi (Dicatat di Historis)">⌫</button>
-      </div>
-    </td>
-  </tr>`;
+function years(dataset) {
+  const list = [...new Set(dataset.map(t => (t.tanggalTransaksi || '').slice(0, 4)).filter(Boolean))].sort().reverse();
+  return list.length ? list : [String(new Date().getFullYear())];
 }
 
-function docCell(doc) {
-  const url = doc && (doc.fileUrl || doc.url);
-  const name = doc && (doc.fileName || doc.name || 'Lihat');
-  return `<td>${url ? `<a class="doc" href="${url}" target="_blank" title="${name}">↗ Lihat</a>` : '<span class="missing">Belum ada</span>'}</td>`;
+function row(t, index) {
+  return `
+    <tr>
+      <td>${String(index).padStart(2, '0')}</td>
+      <td><b>${escapeHtml(t.noTransaksi)}</b></td>
+      <td>${escapeHtml(t.namaBank)}</td>
+      <td>${escapeHtml(t.tanggalTransaksi)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(t.keterangan || '')}">${escapeHtml(t.keterangan || '-')}</td>
+      <td class="amount">${rupiah(t.jumlahTransaksi)}</td>
+      <td>${docLink(t.buktiPengajuan)}</td>
+      <td>${docLink(t.buktiBayar)}</td>
+      <td>${docLink(t.invoice)}</td>
+      <td><span class="badge ${t.statusBukti === 'BUKTI LENGKAP' ? 'complete' : t.statusBukti === 'SEBAGIAN LENGKAP' ? 'partial' : 'empty'}">${escapeHtml(t.statusBukti)}</span></td>
+      <td class="actions">
+        <button class="edit" onclick="openForm('${escapeHtml(t.noTransaksi)}')" title="Edit transaksi">✏</button>
+        <button class="delete" onclick="confirmDelete('${escapeHtml(t.noTransaksi)}')" title="Hapus transaksi">🗑</button>
+      </td>
+    </tr>
+  `;
+}
+
+function docLink(doc) {
+  if (!doc) return '<span class="missing">-</span>';
+  const url = doc.fileUrl || doc.url;
+  const name = doc.fileName || doc.name || 'Lihat Dokumen';
+  if (!url) return `<span class="missing">${escapeHtml(name)}</span>`;
+  return `<a class="doc" href="${url}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(name)}">Lihat Dokumen</a>`;
 }
 
 function openForm(noTransaksi) {
-  const currentDataset = getCurrentData();
-  editing = currentDataset.find(t => t.noTransaksi === noTransaksi) || null;
+  const t = noTransaksi ? getCurrentData().find(x => x.noTransaksi === noTransaksi) || {} : {};
+  editing = noTransaksi ? t : null;
   pendingFiles = {};
   removedDocs = {};
-  const t = editing || { noTransaksi: '', namaBank: '', tanggalTransaksi: '', keterangan: '', jumlahTransaksi: '', buktiPengajuan: null, buktiBayar: null, invoice: null };
 
   const prevModal = $('modal');
   if (prevModal) prevModal.remove();
@@ -842,8 +929,8 @@ function openForm(noTransaksi) {
       <div class="modal">
         <header>
           <div>
-            <div class="eyebrow">${editing ? 'PERBARUI DATA TRANSAKSI' : 'TRANSAKSI BARU'} — ${escapeHtml(getActiveCompanyName())}</div>
-            <h2>${editing ? 'Edit transaksi' : 'Tambah transaksi'}</h2>
+            <div class="eyebrow">${editing ? 'EDIT TRANSAKSI' : 'TRANSAKSI BARU'} — ${escapeHtml(getActiveCompanyName())}</div>
+            <h2>${editing ? 'Perbarui Transaksi' : 'Tambah Transaksi'}</h2>
           </div>
           <button class="close" type="button" onclick="closeModal()">×</button>
         </header>
@@ -852,8 +939,8 @@ function openForm(noTransaksi) {
             <label>No Transaksi <em>*</em><input id="f-no" required value="${escapeHtml(t.noTransaksi || '')}"></label>
             <label>Nama Bank <em>*</em><select id="f-bank" required><option value="">Pilih bank</option>${banks.map(b => `<option ${b === t.namaBank ? 'selected' : ''}>${escapeHtml(b)}</option>`).join('')}</select></label>
             <label>Tanggal Transaksi <em>*</em><input id="f-date" type="date" required value="${t.tanggalTransaksi || ''}"></label>
-            <label>Keterangan<input id="f-desc" placeholder="Contoh: Pembayaran supplier, biaya operasional..." value="${escapeHtml(t.keterangan || '')}"></label>
-            <label class="full-field" style="grid-column: span 2;">Jumlah Transaksi <em>*</em><input id="f-amount" type="text" inputmode="decimal" placeholder="Contoh: 1500000 atau 1500000,50" required value="${formatAmountInput(t.jumlahTransaksi)}"></label>
+            <label>Keterangan<input id="f-desc" placeholder="Contoh: Pembayaran supplier, operasional..." value="${escapeHtml(t.keterangan || '')}"></label>
+            <label class="full-field" style="grid-column: span 2;">Jumlah Transaksi <em>*</em><input id="f-amount" type="text" inputmode="decimal" placeholder="Contoh: 1500000 atau 1.500.000" required value="${formatAmountInput(t.jumlahTransaksi)}"></label>
           </div>
           <div class="docs">
             ${docForm('buktiPengajuan', 'Bukti Pengajuan', t.buktiPengajuan)}
@@ -883,10 +970,8 @@ function docForm(key, label, doc) {
       <h4>${label}</h4>
       ${hasDoc ? `
         <div class="doc-current" id="${key}-current">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;" title="${escapeHtml(docName)}">
-            📄 <a class="doc" href="${docUrl}" target="_blank">${escapeHtml(docName)}</a>
-          </span>
-          <button type="button" onclick="removeDoc('${key}')" style="border:0;background:transparent;color:var(--red);font-size:12px;padding:0 4px;font-weight:bold;cursor:pointer;" title="Hapus dokumen">✕</button>
+          <a class="doc" href="${docUrl}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(docName)}">Lihat Dokumen</a>
+          <button type="button" class="btn-remove-doc" onclick="removeDoc('${key}')" title="Hapus dokumen">✕</button>
         </div>
       ` : ''}
       <div class="doc-label">Upload Dokumen</div>
@@ -969,7 +1054,7 @@ function closeModal() {
   removedDocs = {};
 }
 
-// PROSES SAVE YANG CEPAT & OPTIMAL
+// PROSES SAVE YANG CEPAT & OPTIMAL TANPA REFRESH
 function save(event) {
   event.preventDefault();
   const noTransaksi = $('f-no').value.trim();
@@ -1027,7 +1112,6 @@ function save(event) {
   const fn = isEditing ? 'updateTransaction' : 'addTransaction';
   const args = isEditing ? [editing.noTransaksi, payload, targetCompanyKey] : [payload, targetCompanyKey];
 
-  // Eksekusi asinkron tanpa reload halaman
   call(fn, args).then(result => {
     const currentDataset = companyCache[targetCompanyKey] ? companyCache[targetCompanyKey].data : [];
     if (isEditing) {
@@ -1037,21 +1121,19 @@ function save(event) {
     }
     
     closeModal();
-    render(); // Langsung update tampilan seketika!
+    render();
     toast(`Data transaksi berhasil disimpan ke ${getCompanyObj(targetCompanyKey).name}.`);
-    
-    // Invalidasi statistik dashboard di latar belakang
     dashboardStats = null;
   }).catch(error => {
     if (saveBtn) {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Simpan';
     }
-    toast(error && error.message ? error.message : 'Gagal menyimpan data. Silakan periksa koneksi dan coba lagi.');
+    toast(error && error.message ? error.message : 'Gagal menyimpan data.');
   });
 }
 
-// PENGHAPUSAN TRANSAKSI DENGAN PENCATATAN HISTORIS WAJIB (AUDIT TRAIL)
+// PENGHAPUSAN TRANSAKSI DENGAN PENCATATAN HISTORIS (AUDIT TRAIL)
 function confirmDelete(noTransaksi) {
   const compName = getActiveCompanyName();
   const confirmed = confirm(`PERINGATAN PENGHAPUSAN:\n\nApakah Anda yakin ingin menghapus transaksi "${noTransaksi}" dari ${compName}?\n\nSebelum data dihapus dari database, sistem WAJIB mencatat audit trail (waktu, email, perangkat, dan data transaksi) ke sheet HISTORIS secara permanen.`);
@@ -1070,16 +1152,19 @@ function confirmDelete(noTransaksi) {
     render();
     toast(`Transaksi "${noTransaksi}" berhasil dihapus dan tercatat di HISTORIS.`);
     
-    // Invalidasi data historis & dashboard agar memuat data terbaru
+    // Invalidasi data historis & dashboard agar segera mengambil data terbaru
     historisData = [];
     dashboardStats = null;
+    if (currentView === 'HISTORIS') {
+      loadHistorisData();
+    }
   }).catch(error => {
     toast(error && error.message ? error.message : 'Gagal menghapus transaksi. Data tetap aman dan tidak dihapus.');
   });
 }
 
 // ==========================================================================
-// FITUR IMPORT EXCEL UNTUK PERUSAHAAN AKTIF
+// FITUR IMPORT EXCEL UNTUK PERUSAHAAN AKTIF (BATCH REQUEST CEPAT)
 // ==========================================================================
 function openImportDialog() {
   const fileInput = $('excel-file-input');
@@ -1092,6 +1177,12 @@ function openImportDialog() {
 function handleExcelFileSelect(input) {
   const file = input.files && input.files[0];
   if (!file) return;
+
+  if (typeof XLSX === 'undefined') {
+    toast('Library Excel sedang dimuat. Silakan coba kembali dalam beberapa detik.');
+    input.value = '';
+    return;
+  }
 
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -1114,13 +1205,31 @@ function handleExcelFileSelect(input) {
   reader.readAsArrayBuffer(file);
 }
 
+// ROBUST EXCEL DATE PARSER MENDUKUNG DATE OBJECT, SERIAL NUMBER, DAN TEKS TANGGAL
 function parseExcelDate(val) {
   if (!val) return '';
   if (val instanceof Date && !isNaN(val.getTime())) {
-    return val.toISOString().slice(0, 10);
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
+
+  if (typeof val === 'number' && val > 1000 && val < 100000) {
+    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+  }
+
   const str = String(val).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(str)) return str.replace(/\//g, '-');
+
+  // Format DD/MM/YYYY atau DD-MM-YYYY
   const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (dmy) {
     const day = dmy[1].padStart(2, '0');
@@ -1128,9 +1237,34 @@ function parseExcelDate(val) {
     const year = dmy[3];
     return `${year}-${month}-${day}`;
   }
+
+  // Format DD/MM/YY (2 digit tahun)
+  const dmyShort = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+  if (dmyShort) {
+    const day = dmyShort[1].padStart(2, '0');
+    const month = dmyShort[2].padStart(2, '0');
+    const year = '20' + dmyShort[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  // Cek serial number dalam format string
+  if (/^\d{5}$/.test(str)) {
+    const num = Number(str);
+    const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+  }
+
   const parsed = new Date(str);
   if (!isNaN(parsed.getTime())) {
-    return parsed.toISOString().slice(0, 10);
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
   return '';
 }
@@ -1144,15 +1278,16 @@ function processImportData(sheetRows) {
   let headerIndex = -1;
   let colMap = {};
 
-  for (let r = 0; r < Math.min(sheetRows.length, 5); r++) {
+  // Deteksi baris header secara fleksibel pada 10 baris pertama
+  for (let r = 0; r < Math.min(sheetRows.length, 10); r++) {
     const row = sheetRows[r];
     if (!Array.isArray(row)) continue;
     const lowerHeaders = row.map(cell => String(cell || '').trim().toLowerCase());
     
-    let noIdx = lowerHeaders.findIndex(h => /transaksi|no.*trans|nomor/i.test(h) && !/jumlah|nilai|tanggal|status/i.test(h));
+    let noIdx = lowerHeaders.findIndex(h => /transaksi|no.*trans|nomor.*trans|no_trans|kode.*trans|no\.?\s*bukti/i.test(h) && !/jumlah|nilai|tanggal|status/i.test(h));
     let bankIdx = lowerHeaders.findIndex(h => /bank/i.test(h));
     let tglIdx = lowerHeaders.findIndex(h => /tanggal|tgl|date/i.test(h));
-    let jmlIdx = lowerHeaders.findIndex(h => /jumlah|nominal|amount|nilai/i.test(h));
+    let jmlIdx = lowerHeaders.findIndex(h => /jumlah|nominal|amount|nilai|total|debit|kredit/i.test(h));
 
     if (noIdx !== -1 && (bankIdx !== -1 || tglIdx !== -1 || jmlIdx !== -1)) {
       headerIndex = r;
@@ -1160,11 +1295,11 @@ function processImportData(sheetRows) {
         noTransaksi: noIdx,
         namaBank: bankIdx,
         tanggalTransaksi: tglIdx,
-        keterangan: lowerHeaders.findIndex(h => /keterangan|deskripsi|notes|catatan/i.test(h)),
+        keterangan: lowerHeaders.findIndex(h => /keterangan|deskripsi|uraian|catatan|notes|perihal/i.test(h)),
         jumlahTransaksi: jmlIdx,
-        buktiPengajuan: lowerHeaders.findIndex(h => /pengajuan|bukti.*transaksi/i.test(h)),
+        buktiPengajuan: lowerHeaders.findIndex(h => /pengajuan|bukti.*transaksi|bukti.*pengajuan/i.test(h)),
         buktiBayar: lowerHeaders.findIndex(h => /bayar|bukti.*bayar/i.test(h)),
-        invoice: lowerHeaders.findIndex(h => /invoice|faktur/i.test(h)),
+        invoice: lowerHeaders.findIndex(h => /invoice|faktur|tagihan/i.test(h)),
         status: lowerHeaders.findIndex(h => /status/i.test(h))
       };
       break;
@@ -1186,6 +1321,7 @@ function processImportData(sheetRows) {
     };
   }
 
+  // Ambil No Transaksi yang sudah ada pada perusahaan aktif
   const existingNoSet = new Set(getCurrentData().map(t => String(t.noTransaksi || '').trim().toLowerCase()));
   const batchNoSet = new Set();
   const parsedRows = [];
@@ -1194,7 +1330,13 @@ function processImportData(sheetRows) {
     const row = sheetRows[r];
     if (!row || !row.some(cell => String(cell || '').trim())) continue;
 
-    const noTransaksi = colMap.noTransaksi !== -1 ? String(row[colMap.noTransaksi] || '').trim() : '';
+    let noTransaksi = colMap.noTransaksi !== -1 ? row[colMap.noTransaksi] : '';
+    if (typeof noTransaksi === 'number') {
+      noTransaksi = Math.floor(noTransaksi) === noTransaksi ? String(Math.floor(noTransaksi)) : String(noTransaksi);
+    } else {
+      noTransaksi = String(noTransaksi || '').trim();
+    }
+
     const namaBank = colMap.namaBank !== -1 ? String(row[colMap.namaBank] || '').trim() : '';
     const rawDate = colMap.tanggalTransaksi !== -1 ? row[colMap.tanggalTransaksi] : '';
     const tanggalTransaksi = parseExcelDate(rawDate);
@@ -1218,7 +1360,7 @@ function processImportData(sheetRows) {
     } else if (!tanggalTransaksi) {
       error = 'Tanggal transaksi tidak valid';
     } else if (isNaN(jumlahTransaksi) || jumlahTransaksi <= 0) {
-      error = 'Jumlah transaksi tidak valid';
+      error = 'Nominal transaksi tidak valid';
     }
 
     if (!error) {
@@ -1256,7 +1398,7 @@ function showImportPreviewModal(parsedRows) {
   const prevModal = $('import-modal');
   if (prevModal) prevModal.remove();
 
-  const previewTableRows = parsedRows.slice(0, 50).map((r, i) => `
+  const previewTableRows = parsedRows.slice(0, 100).map((r, i) => `
     <tr style="${r.isValid ? '' : 'background:#fff1f2;'}">
       <td>${i + 1}</td>
       <td><b>${escapeHtml(r.noTransaksi || '-')}</b></td>
@@ -1265,7 +1407,7 @@ function showImportPreviewModal(parsedRows) {
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(r.keterangan || '-')}</td>
       <td class="amount">${rupiah(r.jumlahTransaksi)}</td>
       <td>
-        ${r.isValid ? '<span class="badge complete">✓ Valid</span>' : `<span class="badge empty" title="${escapeHtml(r.errorMsg)}">✕ ${escapeHtml(r.errorMsg)}</span>`}
+        ${r.isValid ? '<span class="badge complete">✓ Siap Simpan</span>' : `<span class="badge empty" title="${escapeHtml(r.errorMsg)}">✕ ${escapeHtml(r.errorMsg)}</span>`}
       </td>
     </tr>
   `).join('');
@@ -1276,15 +1418,15 @@ function showImportPreviewModal(parsedRows) {
         <header>
           <div>
             <div class="eyebrow">IMPORT TRANSAKSI EXCEL — ${escapeHtml(getActiveCompanyName())}</div>
-            <h2>Pratinjau Data Import</h2>
+            <h2>Pratinjau Data Import (${parsedRows.length} Baris Terbaca)</h2>
           </div>
           <button class="close" type="button" onclick="closeImportModal()">×</button>
         </header>
         <div class="form">
           <div class="preview-summary">
             <div class="summary-badge summary-valid">✓ ${validCount} Transaksi Siap Disimpan ke ${escapeHtml(getCompanyObj(currentCompanyKey).shortName)}</div>
-            ${invalidCount > 0 ? `<div class="summary-badge summary-invalid">⚠ ${invalidCount} Data Tidak Valid (Dilewati)</div>` : ''}
-            <div style="font-size:11px;color:var(--muted);margin-left:auto;align-self:center;">Total terbaca: ${parsedRows.length} baris</div>
+            ${invalidCount > 0 ? `<div class="summary-badge summary-invalid">⚠ ${invalidCount} Data Tidak Valid (Akan Dilewati)</div>` : ''}
+            <div style="font-size:11px;color:var(--muted);margin-left:auto;">Perusahaan Tujuan: <b>${escapeHtml(getActiveCompanyName())}</b></div>
           </div>
           <div class="table-scroll" style="max-height:360px;border:1px solid var(--line);border-radius:8px;">
             <table>
@@ -1304,12 +1446,12 @@ function showImportPreviewModal(parsedRows) {
               </tbody>
             </table>
           </div>
-          ${parsedRows.length > 50 ? `<p style="font-size:11px;color:var(--muted);margin:8px 0 0;">Menampilkan 50 data pertama dari total ${parsedRows.length} data.</p>` : ''}
+          ${parsedRows.length > 100 ? `<p style="font-size:11px;color:var(--muted);margin:8px 0 0;">Menampilkan 100 data pertama dari total ${parsedRows.length} data.</p>` : ''}
           <div class="modal-foot" style="padding:16px 0 0;margin-top:16px;">
-            <span style="font-size:11px;color:var(--muted)">Data akan langsung disimpan ke sheet ${escapeHtml(getCompanyObj(currentCompanyKey).shortName)}</span>
+            <span style="font-size:11px;color:var(--muted)">Data akan langsung dikirim secara batch ke sheet ${escapeHtml(getCompanyObj(currentCompanyKey).shortName)}</span>
             <div style="display:flex;gap:8px;">
               <button type="button" class="secondary" onclick="closeImportModal()">Batal</button>
-              <button type="button" class="primary" id="btn-save-import" onclick="saveImportedData()" ${validCount === 0 ? 'disabled' : ''}>Simpan ${validCount} Data</button>
+              <button type="button" class="primary" id="btn-save-import" onclick="saveImportedData()" ${validCount === 0 ? 'disabled' : ''}>Simpan ${validCount} Data ke Spreadsheet</button>
             </div>
           </div>
         </div>
@@ -1324,6 +1466,7 @@ function closeImportModal() {
   importedRowsToSave = [];
 }
 
+// BATCH SAVE IMPORT TRANSAKSI SECARA CEPAT DALAM SATU REQUEST
 function saveImportedData() {
   if (!importedRowsToSave.length) {
     toast('Tidak ada data valid untuk disimpan.');
@@ -1359,7 +1502,7 @@ function saveImportedData() {
   }).catch(err => {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = `Simpan ${importedRowsToSave.length} Data`;
+      btn.textContent = `Simpan ${importedRowsToSave.length} Data ke Spreadsheet`;
     }
     toast('Gagal menyimpan import: ' + (err.message || String(err)));
   });
@@ -1565,6 +1708,51 @@ function exportHistorisToExcel() {
   toast('Log historis berhasil diunduh.');
 }
 
+// MODAL PENGATURAN API URL (KONEKSI GITHUB PAGES KE GOOGLE APPS SCRIPT)
+function openApiConfigModal() {
+  const prevModal = $('api-modal');
+  if (prevModal) prevModal.remove();
+
+  const currentUrl = getActiveApiUrl();
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-bg" id="api-modal" onclick="if(event.target===this)closeApiModal()">
+      <div class="modal">
+        <header>
+          <div>
+            <div class="eyebrow">PENGATURAN KONEKSI</div>
+            <h2>Hubungkan ke Google Apps Script</h2>
+          </div>
+          <button class="close" type="button" onclick="closeApiModal()">×</button>
+        </header>
+        <div class="form">
+          <p style="margin:0 0 14px;color:var(--muted);font-size:12px;line-height:1.5;">
+            Masukkan URL Web App Google Apps Script Anda untuk menghubungkan data Google Sheets dan Google Drive saat aplikasi dibuka melalui <b>GitHub Pages</b>.
+          </p>
+          <label>URL Web App Google Apps Script
+            <input id="api-url-input" placeholder="https://script.google.com/macros/s/AKfycb.../exec" value="${escapeHtml(currentUrl)}">
+          </label>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.4;">
+            💡 <b>Tips:</b> Di Google Apps Script editor, klik <b>Deploy</b> → <b>New Deployment</b> → Pilih tipe <b>Web App</b> → Execute as: <b>Me</b> → Who has access: <b>Anyone</b> → Salin Web App URL ke kotak di atas.
+          </div>
+          <div class="modal-foot" style="padding:16px 0 0;margin-top:16px;">
+            <button type="button" class="secondary" onclick="setApiUrl('')" style="color:var(--red);">Reset URL</button>
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="secondary" onclick="closeApiModal()">Tutup</button>
+              <button type="button" class="primary" onclick="setApiUrl($('api-url-input').value)">Simpan Koneksi</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+function closeApiModal() {
+  const m = $('api-modal');
+  if (m) m.remove();
+}
+
 // ==========================================================================
 // DATA LOADERS & INITIALIZATION
 // ==========================================================================
@@ -1651,10 +1839,10 @@ function loadHistorisData() {
   });
 }
 
-// 1. Render UI awal seketika tanpa menunggu backend (instant display)
+// 1. Render antarmuka langsung tanpa menunggu backend (instant UI, no blank screen)
 render();
 
-// 2. Ambil data perusahaan aktif di latar belakang
+// 2. Muat data perusahaan aktif di latar belakang secara asinkron
 loadCurrentCompanyData();
 </script>
 </body>
