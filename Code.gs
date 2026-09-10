@@ -1,12 +1,25 @@
-const SPREADSHEET_ID = '1L8cu2jbefLBlrxbRFYvEqPUSjPd7_8xsx8Ssm70wfGs';
-const SHEET_NAME = 'Transaksi';
+const SPREADSHEET_ID = '1papTHE7Uvx1nX2y3hNPdNehP2v9wimUzCBSNEQ18uvM';
 const BANK_SHEET_NAME = 'Bank';
-const DRIVE_FOLDER_ID = '11yUGFN2o_8ikfkyi6z0izxRT_RhyJklj';
+const DRIVE_FOLDER_ID = '1AlsC2ZLYSKi7E5Yf2VeccyXK1Y5NSCyC';
+const HISTORIS_SHEET_NAME = 'HISTORIS';
+
+const COMPANIES = {
+  'PATRIA': { key: 'PATRIA', name: 'PATRIA MENARA ABADI', sheetName: 'TRANSAKSI_PATRIA' },
+  'ARRAH': { key: 'ARRAH', name: 'ARRAH ENERGI INDONESIA', sheetName: 'TRANSAKSI_ARRAH' },
+  'ABIUMI': { key: 'ABIUMI', name: 'ABIUMI REJEKI BERSAMA', sheetName: 'TRANSAKSI_ABIUMI' },
+  'LANGGENG': { key: 'LANGGENG', name: 'LANGGENG NIAGA GEMILANG', sheetName: 'TRANSAKSI_LANGGENG' }
+};
+const DEFAULT_COMPANY_KEY = 'PATRIA';
 
 const HEADERS = [
-  'ID', 'No Transaksi', 'Nama Bank', 'Tanggal Transaksi', 'Keterangan', 'Jumlah Transaksi',
+  'No Transaksi', 'Nama Bank', 'Tanggal Transaksi', 'Keterangan', 'Jumlah Transaksi',
   'Bukti Pengajuan', 'Bukti Bayar', 'Invoice', 'Status Bukti',
   'Link Bukti Pengajuan', 'Link Bukti Bayar', 'Link Invoice', 'Created At', 'Updated At'
+];
+
+const HISTORIS_HEADERS = [
+  'Timestamp', 'Perusahaan', 'No Transaksi', 'Nama Bank', 'Tanggal Transaksi',
+  'Keterangan', 'Jumlah Transaksi', 'Status', 'Email', 'Device', 'Aktivitas'
 ];
 
 function doGet(e) {
@@ -14,12 +27,12 @@ function doGet(e) {
     return handleApiRequest_(e.parameter.action, e.parameter);
   }
   try {
-    return HtmlService.createHtmlOutputFromFile('index')
-      .setTitle('Verifikasi Filling')
+    return HtmlService.createHtmlOutputFromFile('Index')
+      .setTitle('PATRIA MENARA ABADI - Verifikasi Filling')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   } catch (err) {
     return HtmlService.createHtmlOutputFromFile('index')
-      .setTitle('Verifikasi Filling')
+      .setTitle('PATRIA MENARA ABADI - Verifikasi Filling')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 }
@@ -35,20 +48,27 @@ function doPost(e) {
     const action = payload.action;
     const args = payload.args || [];
     let result;
+
     if (action === 'getData') {
-      result = getData();
+      result = getData(args[0]);
     } else if (action === 'getBanks') {
       result = getBanks();
     } else if (action === 'getTransactionById') {
-      result = getTransactionById(args[0]);
+      result = getTransactionById(args[0], args[1]);
     } else if (action === 'addTransaction') {
-      result = addTransaction(args[0]);
+      result = addTransaction(args[0], args[1]);
     } else if (action === 'updateTransaction') {
-      result = updateTransaction(args[0], args[1]);
+      result = updateTransaction(args[0], args[1], args[2]);
     } else if (action === 'deleteTransaction') {
-      result = deleteTransaction(args[0]);
+      result = deleteTransaction(args[0], args[1], args[2]);
     } else if (action === 'uploadFile') {
-      result = uploadFile(args[0]);
+      result = uploadFile(args[0], args[1]);
+    } else if (action === 'importTransactions') {
+      result = importTransactions(args[0], args[1]);
+    } else if (action === 'getDashboardStats') {
+      result = getDashboardStats();
+    } else if (action === 'getHistorisData') {
+      result = getHistorisData();
     } else {
       throw new Error('Action tidak valid: ' + action);
     }
@@ -64,11 +84,15 @@ function handleApiRequest_(action, params) {
   try {
     let result;
     if (action === 'getData') {
-      result = getData();
+      result = getData(params.companyKey || params.company);
     } else if (action === 'getBanks') {
       result = getBanks();
     } else if (action === 'getTransactionById') {
-      result = getTransactionById(params.id);
+      result = getTransactionById(params.id, params.companyKey || params.company);
+    } else if (action === 'getDashboardStats') {
+      result = getDashboardStats();
+    } else if (action === 'getHistorisData') {
+      result = getHistorisData();
     } else {
       throw new Error('Action tidak dikenal: ' + action);
     }
@@ -80,9 +104,90 @@ function handleApiRequest_(action, params) {
   }
 }
 
-function getData() {
-  const sheet = getTransactionSheet_();
-  ensureHeaders_(sheet);
+function normalizeCompanyKey_(key) {
+  const upper = String(key || DEFAULT_COMPANY_KEY).trim().toUpperCase();
+  if (COMPANIES[upper]) return upper;
+  for (const k in COMPANIES) {
+    if (COMPANIES[k].name.toUpperCase().indexOf(upper) !== -1 || upper.indexOf(k) !== -1) {
+      return k;
+    }
+  }
+  return DEFAULT_COMPANY_KEY;
+}
+
+function getCompanyConfig_(key) {
+  const norm = normalizeCompanyKey_(key);
+  return COMPANIES[norm] || COMPANIES[DEFAULT_COMPANY_KEY];
+}
+
+function openSpreadsheet_() {
+  if (!SPREADSHEET_ID || SPREADSHEET_ID === 'ISI_ID_SPREADSHEET') throw new Error('Ganti SPREADSHEET_ID di Code.gs terlebih dahulu.');
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
+}
+
+function getTransactionSheet_(companyKey) {
+  const config = getCompanyConfig_(companyKey);
+  const spreadsheet = openSpreadsheet_();
+  let sheet = spreadsheet.getSheetByName(config.sheetName);
+
+  // Fallback untuk PATRIA: jika sheet TRANSAKSI_PATRIA belum ada, cek sheet 'Transaksi' yang sudah ada
+  if (!sheet && config.key === 'PATRIA') {
+    sheet = spreadsheet.getSheetByName('Transaksi');
+    if (sheet) {
+      try {
+        sheet.setName(config.sheetName);
+      } catch (e) {
+        // Jika rename dibatasi, gunakan sheet Transaksi apa adanya
+      }
+    }
+  }
+
+  // Jika sheet belum ada, buat otomatis
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(config.sheetName);
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+  } else {
+    ensureHeaders_(sheet);
+  }
+
+  return sheet;
+}
+
+function getHistorisSheet_() {
+  const spreadsheet = openSpreadsheet_();
+  let sheet = spreadsheet.getSheetByName(HISTORIS_SHEET_NAME);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(HISTORIS_SHEET_NAME);
+    sheet.getRange(1, 1, 1, HISTORIS_HEADERS.length).setValues([HISTORIS_HEADERS]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, HISTORIS_HEADERS.length).setFontWeight('bold').setBackground('#1e293b').setFontColor('#ffffff');
+  }
+  return sheet;
+}
+
+function ensureHeaders_(sheet) {
+  const lastCol = sheet.getLastColumn();
+  if (lastCol > 0) {
+    const current = sheet.getRange(1, 1, 1, Math.max(lastCol, HEADERS.length + 1)).getValues()[0];
+    const firstHeader = String(current[0] || '').trim().toLowerCase();
+    // Jika kolom pertama di Spreadsheet masih bernama 'id', hapus kolom ID tersebut agar database bersih dari ID internal
+    if (firstHeader === 'id') {
+      sheet.deleteColumn(1);
+    }
+    const updated = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), HEADERS.length)).getValues()[0];
+    const hasKeterangan = updated.some(h => String(h || '').trim().toLowerCase() === 'keterangan');
+    if (!hasKeterangan) {
+      sheet.insertColumnAfter(3);
+    }
+  }
+  sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+  sheet.setFrozenRows(1);
+}
+
+function getData(companyKey) {
+  const sheet = getTransactionSheet_(companyKey);
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) return [];
   return values.slice(1).filter(row => String(row[0]).trim()).map(rowToTransaction_);
@@ -97,57 +202,285 @@ function getBanks() {
     .filter((value, index, values) => values.indexOf(value) === index);
 }
 
-function getTransactionById(id) {
-  const safeId = validateId_(id);
-  const row = findRowById_(safeId);
-  if (!row) throw new Error('Transaksi tidak ditemukan.');
+function getTransactionById(id, companyKey) {
+  const safeId = validateTransactionNumber_(id);
+  const sheet = getTransactionSheet_(companyKey);
+  const row = findRowByTransactionNumberInSheet_(sheet, safeId);
+  if (!row) throw new Error('Transaksi tidak ditemukan pada perusahaan terkait.');
   return rowToTransaction_(row.values);
 }
 
-function addTransaction(payload) {
+// SIMPAN FORM CEPAT (OPTIMIZED SAVE)
+function addTransaction(payload, companyKey) {
   const input = validateTransactionPayload_(payload);
-  const sheet = getTransactionSheet_();
-  ensureHeaders_(sheet);
-  if (findRowByTransactionNumber_(input.noTransaksi)) throw new Error('No transaksi sudah digunakan.');
-  const id = Utilities.getUuid();
+  const compConfig = getCompanyConfig_(companyKey);
+  const sheet = getTransactionSheet_(compConfig.key);
+
+  // Pengecekan duplikasi hanya membaca kolom nomor transaksi (jauh lebih cepat)
+  if (isTransactionNumberExistsInSheet_(sheet, input.noTransaksi)) {
+    throw new Error('No transaksi "' + input.noTransaksi + '" sudah digunakan pada ' + compConfig.name + '.');
+  }
+
   const now = new Date();
-  const docs = saveDocuments_(input, id);
-  const transaction = createTransactionObject_(id, input, docs, now, now);
+  const docs = saveDocuments_(input, input.noTransaksi, null, compConfig.key);
+  const transaction = createTransactionObject_(input, docs, now, now);
   sheet.appendRow(transactionToRow_(transaction));
   return transaction;
 }
 
-function updateTransaction(id, payload) {
-  const safeId = validateId_(id);
+// UPDATE FORM CEPAT (OPTIMIZED UPDATE)
+function updateTransaction(id, payload, companyKey) {
+  const safeId = validateTransactionNumber_(id);
   const input = validateTransactionPayload_(payload);
-  const found = findRowById_(safeId);
-  if (!found) throw new Error('Transaksi tidak ditemukan.');
-  const duplicate = findRowByTransactionNumber_(input.noTransaksi);
-  if (duplicate && duplicate.rowNumber !== found.rowNumber) throw new Error('No transaksi sudah digunakan.');
+  const compConfig = getCompanyConfig_(companyKey);
+  const sheet = getTransactionSheet_(compConfig.key);
+
+  const found = findRowByTransactionNumberInSheet_(sheet, safeId);
+  if (!found) throw new Error('Transaksi tidak ditemukan pada ' + compConfig.name + '.');
+
+  if (String(input.noTransaksi).trim().toLowerCase() !== safeId.toLowerCase()) {
+    const duplicate = findRowByTransactionNumberInSheet_(sheet, input.noTransaksi);
+    if (duplicate && duplicate.rowNumber !== found.rowNumber) {
+      throw new Error('No transaksi "' + input.noTransaksi + '" sudah digunakan pada ' + compConfig.name + '.');
+    }
+  }
+
   const previous = rowToTransaction_(found.values);
   const now = new Date();
-  const docs = saveDocuments_(input, safeId, previous);
-  const transaction = createTransactionObject_(safeId, input, docs, previous.createdAt || now, now);
+  const docs = saveDocuments_(input, input.noTransaksi, previous, compConfig.key);
+  const transaction = createTransactionObject_(input, docs, previous.createdAt || now, now);
   sheetUpdateRow_(found.sheet, found.rowNumber, transactionToRow_(transaction));
   return transaction;
 }
 
-function deleteTransaction(id) {
-  const safeId = validateId_(id);
-  const found = findRowById_(safeId);
-  if (!found) throw new Error('Transaksi tidak ditemukan.');
+// DELETE TRANSAKSI DENGAN PENCATATAN HISTORIS (IMMUTABLE AUDIT TRAIL)
+function deleteTransaction(id, companyKey, clientInfo) {
+  const safeId = validateTransactionNumber_(id);
+  const compConfig = getCompanyConfig_(companyKey);
+  const sheet = getTransactionSheet_(compConfig.key);
+
+  const found = findRowByTransactionNumberInSheet_(sheet, safeId);
+  if (!found) throw new Error('Transaksi tidak ditemukan pada ' + compConfig.name + '.');
+
+  // Ambil snapshot kondisi data transaksi sebelum dihapus
+  const txData = rowToTransaction_(found.values);
+
+  // Ambil email resmi dari Google Apps Script environment jika tersedia
+  let userEmail = '';
+  try {
+    userEmail = Session.getActiveUser().getEmail();
+  } catch (e) {}
+  if (!userEmail) {
+    try {
+      userEmail = Session.getEffectiveUser().getEmail();
+    } catch (e) {}
+  }
+  if (!userEmail && clientInfo && clientInfo.userEmail) {
+    userEmail = String(clientInfo.userEmail).trim();
+  }
+  if (!userEmail) {
+    userEmail = 'Pengguna Web / Terotorisasi';
+  }
+
+  // Device / Browser
+  const device = clientInfo && clientInfo.device ? String(clientInfo.device).slice(0, 200) : 'Browser Client';
+  const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Jakarta', 'yyyy-MM-dd HH:mm:ss');
+
+  const historyRow = [
+    timestamp,
+    compConfig.name,
+    txData.noTransaksi,
+    txData.namaBank,
+    txData.tanggalTransaksi,
+    txData.keterangan || '',
+    txData.jumlahTransaksi,
+    txData.statusBukti,
+    userEmail,
+    device,
+    'DELETE'
+  ];
+
+  // LANGKAH PENTING: Catat ke sheet HISTORIS TERLEBIH DAHULU!
+  // Jika pencatatan histori gagal, jangan hapus transaksi.
+  const historisSheet = getHistorisSheet_();
+  try {
+    historisSheet.appendRow(historyRow);
+  } catch (err) {
+    throw new Error('Gagal mencatat audit log Historis: ' + (err.message || String(err)) + '. Penghapusan transaksi dibatalkan demi keamanan data.');
+  }
+
+  // Setelah histori tersimpan aman, hapus baris dari sheet perusahaan
   found.sheet.deleteRow(found.rowNumber);
-  return { success: true, id: safeId };
+  return { success: true, id: safeId, company: compConfig.name };
 }
 
-function uploadFile(payload) {
+// BACA HISTORIS DATA (READ ONLY - TIDAK ADA EDIT/DELETE)
+function getHistorisData() {
+  const sheet = getHistorisSheet_();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
+
+  const list = [];
+  for (let i = values.length - 1; i >= 1; i--) {
+    const r = values[i];
+    if (!String(r[0] || '').trim() && !String(r[2] || '').trim()) continue;
+    list.push({
+      timestamp: String(r[0] || ''),
+      perusahaan: String(r[1] || ''),
+      noTransaksi: String(r[2] || ''),
+      namaBank: String(r[3] || ''),
+      tanggalTransaksi: formatDateInput_(r[4]),
+      keterangan: String(r[5] || ''),
+      jumlahTransaksi: parseNominal_(r[6]) || 0,
+      statusBukti: String(r[7] || ''),
+      email: String(r[8] || '-'),
+      device: String(r[9] || '-'),
+      aktivitas: String(r[10] || 'DELETE')
+    });
+  }
+  return list;
+}
+
+// STATISTIK DASHBOARD CEPAT DARI DATA AKTUAL 4 PERUSAHAAN
+function getDashboardStats() {
+  const spreadsheet = openSpreadsheet_();
+  const stats = {};
+  let overallTotal = 0;
+  let overallLengkap = 0;
+  let overallSebagian = 0;
+  let overallTidakAda = 0;
+  let overallAmount = 0;
+
+  for (const k in COMPANIES) {
+    const comp = COMPANIES[k];
+    let sheet = spreadsheet.getSheetByName(comp.sheetName);
+    if (!sheet && comp.key === 'PATRIA') {
+      sheet = spreadsheet.getSheetByName('Transaksi');
+    }
+
+    let total = 0;
+    let lengkap = 0;
+    let sebagian = 0;
+    let tidakAda = 0;
+    let amount = 0;
+
+    if (sheet && sheet.getLastRow() > 1) {
+      const numRows = sheet.getLastRow() - 1;
+      const dataValues = sheet.getRange(2, 1, numRows, Math.min(sheet.getLastColumn(), 10)).getValues();
+
+      for (let i = 0; i < dataValues.length; i++) {
+        const row = dataValues[i];
+        if (!String(row[0] || '').trim()) continue;
+        total++;
+        const amt = parseNominal_(row[4]) || 0;
+        amount += amt;
+        const status = String(row[8] || '').trim().toUpperCase();
+        if (status === 'BUKTI LENGKAP') {
+          lengkap++;
+        } else if (status === 'SEBAGIAN LENGKAP') {
+          sebagian++;
+        } else {
+          tidakAda++;
+        }
+      }
+    }
+
+    const persentaseLengkap = total > 0 ? Math.round((lengkap / total) * 100) : 0;
+    const persentaseSebagian = total > 0 ? Math.round((sebagian / total) * 100) : 0;
+    const persentaseTidakAda = total > 0 ? Math.round((tidakAda / total) * 100) : 0;
+
+    stats[comp.key] = {
+      key: comp.key,
+      name: comp.name,
+      total: total,
+      amount: amount,
+      lengkap: lengkap,
+      sebagian: sebagian,
+      tidakAda: tidakAda,
+      persentaseLengkap: persentaseLengkap,
+      persentaseSebagian: persentaseSebagian,
+      persentaseTidakAda: persentaseTidakAda
+    };
+
+    overallTotal += total;
+    overallAmount += amount;
+    overallLengkap += lengkap;
+    overallSebagian += sebagian;
+    overallTidakAda += tidakAda;
+  }
+
+  stats.overall = {
+    total: overallTotal,
+    amount: overallAmount,
+    lengkap: overallLengkap,
+    sebagian: overallSebagian,
+    tidakAda: overallTidakAda,
+    persentaseLengkap: overallTotal > 0 ? Math.round((overallLengkap / overallTotal) * 100) : 0,
+    persentaseSebagian: overallTotal > 0 ? Math.round((overallSebagian / overallTotal) * 100) : 0,
+    persentaseTidakAda: overallTotal > 0 ? Math.round((overallTidakAda / overallTotal) * 100) : 0
+  };
+
+  return stats;
+}
+
+function importTransactions(rows, companyKey) {
+  if (!Array.isArray(rows) || !rows.length) {
+    throw new Error('Tidak ada data transaksi untuk diimpor.');
+  }
+  const compConfig = getCompanyConfig_(companyKey);
+  const sheet = getTransactionSheet_(compConfig.key);
+
+  const existingValues = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).getValues();
+  const existingSet = new Set();
+  for (let i = 1; i < existingValues.length; i++) {
+    const val = String(existingValues[i][0] || '').trim().toLowerCase();
+    if (val) existingSet.add(val);
+  }
+
+  const batchRows = [];
+  const resultTransactions = [];
+  const now = new Date();
+
+  for (let i = 0; i < rows.length; i++) {
+    const item = rows[i];
+    const noTrans = String(item.noTransaksi || '').trim();
+    if (!noTrans) {
+      throw new Error('Baris ' + (i + 1) + ': No Transaksi wajib diisi.');
+    }
+    const noTransLower = noTrans.toLowerCase();
+    if (existingSet.has(noTransLower)) {
+      throw new Error('Baris ' + (i + 1) + ': No Transaksi "' + noTrans + '" sudah ada di ' + compConfig.name + '.');
+    }
+    existingSet.add(noTransLower);
+
+    const input = validateTransactionPayload_(item);
+    const docs = {
+      buktiPengajuan: item.buktiPengajuan && typeof item.buktiPengajuan === 'object' ? item.buktiPengajuan : (item.buktiPengajuan ? { fileName: String(item.buktiPengajuan), fileUrl: String(item.linkBuktiPengajuan || '') } : null),
+      buktiBayar: item.buktiBayar && typeof item.buktiBayar === 'object' ? item.buktiBayar : (item.buktiBayar ? { fileName: String(item.buktiBayar), fileUrl: String(item.linkBuktiBayar || '') } : null),
+      invoice: item.invoice && typeof item.invoice === 'object' ? item.invoice : (item.invoice ? { fileName: String(item.invoice), fileUrl: String(item.linkInvoice || '') } : null)
+    };
+
+    const transaction = createTransactionObject_(input, docs, now, now);
+    batchRows.push(transactionToRow_(transaction));
+    resultTransactions.push(transaction);
+  }
+
+  if (batchRows.length > 0) {
+    const startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, batchRows.length, HEADERS.length).setValues(batchRows);
+  }
+
+  return resultTransactions;
+}
+
+function uploadFile(payload, companyKey) {
   if (!payload || !payload.base64 || !payload.fileName || !payload.documentKey) throw new Error('Data file tidak lengkap.');
   if (!/\.(jpe?g|png|pdf)$/i.test(payload.fileName)) {
     throw new Error('Format file tidak didukung. Gunakan JPG, JPEG, PNG, atau PDF.');
   }
-  const safeId = validateId_(payload.transactionId || Utilities.getUuid());
-  const input = { noTransaksi: payload.noTransaksi || safeId, tanggalTransaksi: payload.tanggalTransaksi || formatDateInput_(new Date()) };
-  const file = saveFileToDrive_(payload, input, safeId, payload.documentKey);
+  const noTransaksi = validateTransactionNumber_(payload.noTransaksi || payload.transactionId || 'DOKUMEN');
+  const input = { noTransaksi: noTransaksi, tanggalTransaksi: payload.tanggalTransaksi || formatDateInput_(new Date()) };
+  const file = saveFileToDrive_(payload, input, noTransaksi, payload.documentKey, companyKey);
   return { fileId: file.getId(), fileUrl: file.getUrl(), fileName: file.getName() };
 }
 
@@ -160,30 +493,6 @@ function calculateStatus(documentValues) {
   return count === 3 ? 'BUKTI LENGKAP' : count > 0 ? 'SEBAGIAN LENGKAP' : 'TIDAK ADA BUKTI';
 }
 
-function openSpreadsheet_() {
-  if (!SPREADSHEET_ID || SPREADSHEET_ID === 'ISI_ID_SPREADSHEET') throw new Error('Ganti SPREADSHEET_ID di Code.gs terlebih dahulu.');
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
-}
-
-function getTransactionSheet_() {
-  const sheet = openSpreadsheet_().getSheetByName(SHEET_NAME);
-  if (!sheet) throw new Error('Sheet Transaksi belum dibuat.');
-  return sheet;
-}
-
-function ensureHeaders_(sheet) {
-  const lastCol = sheet.getLastColumn();
-  if (lastCol > 0) {
-    const current = sheet.getRange(1, 1, 1, Math.max(lastCol, HEADERS.length)).getValues()[0];
-    const hasKeterangan = current.some(h => String(h || '').trim().toLowerCase() === 'keterangan');
-    if (!hasKeterangan) {
-      sheet.insertColumnAfter(4);
-    }
-  }
-  sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-  sheet.setFrozenRows(1);
-}
-
 function validateTransactionPayload_(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('Data transaksi tidak valid.');
   const noTransaksi = String(payload.noTransaksi || '').trim();
@@ -192,7 +501,6 @@ function validateTransactionPayload_(payload) {
   const keterangan = String(payload.keterangan || '').trim();
   const jumlahTransaksi = parseNominal_(payload.jumlahTransaksi);
   if (!noTransaksi) throw new Error('No transaksi wajib diisi.');
-  if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]{1,79}$/.test(noTransaksi)) throw new Error('No transaksi mengandung karakter yang tidak aman.');
   if (!namaBank) throw new Error('Nama bank wajib diisi.');
   if (!tanggalTransaksi || isNaN(new Date(tanggalTransaksi).getTime())) throw new Error('Tanggal transaksi tidak valid.');
   if (!isFinite(jumlahTransaksi) || jumlahTransaksi <= 0) throw new Error('Jumlah transaksi harus berupa angka lebih besar dari 0.');
@@ -225,13 +533,13 @@ function isDriveUrl_(url) {
   return /^https:\/\/(drive\.google\.com|docs\.google\.com)\//i.test(String(url || '').trim());
 }
 
-function validateId_(id) {
-  const value = String(id || '').trim();
-  if (!value || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/.test(value)) throw new Error('ID transaksi tidak valid.');
+function validateTransactionNumber_(no) {
+  const value = String(no || '').trim();
+  if (!value) throw new Error('No transaksi tidak valid.');
   return value;
 }
 
-function saveDocuments_(input, transactionId, previous) {
+function saveDocuments_(input, transactionNumber, previous, companyKey) {
   const result = { buktiPengajuan: previous && previous.buktiPengajuan || null, buktiBayar: previous && previous.buktiBayar || null, invoice: previous && previous.invoice || null };
   ['buktiPengajuan', 'buktiBayar', 'invoice'].forEach(key => {
     const value = input[key];
@@ -241,7 +549,7 @@ function saveDocuments_(input, transactionId, previous) {
       return;
     }
     if (value.base64) {
-      const file = saveFileToDrive_(value, input, transactionId, key);
+      const file = saveFileToDrive_(value, input, transactionNumber, key, companyKey);
       result[key] = { fileId: file.getId(), fileName: file.getName(), fileUrl: file.getUrl() };
     } else if (value.url) {
       result[key] = { fileId: value.fileId || extractDriveId_(value.url), fileName: value.name || value.fileName || 'Link Google Drive', fileUrl: value.url };
@@ -252,13 +560,15 @@ function saveDocuments_(input, transactionId, previous) {
   return result;
 }
 
-function saveFileToDrive_(payload, input, transactionId, documentKey) {
+function saveFileToDrive_(payload, input, transactionNumber, documentKey, companyKey) {
   if (!DRIVE_FOLDER_ID || DRIVE_FOLDER_ID === 'ISI_ID_FOLDER_DRIVE') throw new Error('Ganti DRIVE_FOLDER_ID di Code.gs terlebih dahulu.');
   const root = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+  const compConfig = getCompanyConfig_(companyKey);
+  const compFolder = getOrCreateFolder_(root, compConfig.name);
   const date = new Date(input.tanggalTransaksi);
-  const yearFolder = getOrCreateFolder_(root, String(date.getFullYear()));
+  const yearFolder = getOrCreateFolder_(compFolder, String(date.getFullYear()));
   const monthFolder = getOrCreateFolder_(yearFolder, monthName_(date.getMonth()));
-  const transactionFolder = getOrCreateFolder_(monthFolder, String(input.noTransaksi || transactionId));
+  const transactionFolder = getOrCreateFolder_(monthFolder, String(input.noTransaksi || transactionNumber));
   const documentFolder = getOrCreateFolder_(transactionFolder, documentFolderName_(documentKey));
   const bytes = Utilities.base64Decode(String(payload.base64).replace(/^data:[^;]+;base64,/, ''));
   let mime = payload.mimeType;
@@ -288,56 +598,72 @@ function monthName_(monthIndex) { return ['Januari', 'Februari', 'Maret', 'April
 function documentFolderName_(key) { return ({ buktiPengajuan: 'Bukti Pengajuan', buktiBayar: 'Bukti Bayar', invoice: 'Invoice' })[key] || 'Dokumen'; }
 function sanitizeFileName_(name) { return String(name || 'dokumen').replace(/[\\/:*?"<>|#%]/g, '_').slice(0, 180); }
 
-function createTransactionObject_(id, input, docs, createdAt, updatedAt) {
-  return { id, noTransaksi: input.noTransaksi, namaBank: input.namaBank, tanggalTransaksi: input.tanggalTransaksi, keterangan: input.keterangan || '', jumlahTransaksi: input.jumlahTransaksi, buktiPengajuan: docs.buktiPengajuan, buktiBayar: docs.buktiBayar, invoice: docs.invoice, statusBukti: calculateStatus([docs.buktiPengajuan, docs.buktiBayar, docs.invoice]), createdAt: createdAt instanceof Date ? createdAt.toISOString() : String(createdAt), updatedAt: updatedAt instanceof Date ? updatedAt.toISOString() : String(updatedAt) };
+function createTransactionObject_(input, docs, createdAt, updatedAt) {
+  return {
+    id: input.noTransaksi,
+    noTransaksi: input.noTransaksi,
+    namaBank: input.namaBank,
+    tanggalTransaksi: input.tanggalTransaksi,
+    keterangan: input.keterangan || '',
+    jumlahTransaksi: input.jumlahTransaksi,
+    buktiPengajuan: docs.buktiPengajuan,
+    buktiBayar: docs.buktiBayar,
+    invoice: docs.invoice,
+    statusBukti: calculateStatus([docs.buktiPengajuan, docs.buktiBayar, docs.invoice]),
+    createdAt: createdAt instanceof Date ? createdAt.toISOString() : String(createdAt),
+    updatedAt: updatedAt instanceof Date ? updatedAt.toISOString() : String(updatedAt)
+  };
 }
 
 function transactionToRow_(transaction) {
-  return [transaction.id, transaction.noTransaksi, transaction.namaBank, transaction.tanggalTransaksi, transaction.keterangan || '', transaction.jumlahTransaksi, documentName_(transaction.buktiPengajuan), documentName_(transaction.buktiBayar), documentName_(transaction.invoice), transaction.statusBukti, documentUrl_(transaction.buktiPengajuan), documentUrl_(transaction.buktiBayar), documentUrl_(transaction.invoice), transaction.createdAt, transaction.updatedAt];
+  return [
+    transaction.noTransaksi,
+    transaction.namaBank,
+    transaction.tanggalTransaksi,
+    transaction.keterangan || '',
+    transaction.jumlahTransaksi,
+    documentName_(transaction.buktiPengajuan),
+    documentName_(transaction.buktiBayar),
+    documentName_(transaction.invoice),
+    transaction.statusBukti,
+    documentUrl_(transaction.buktiPengajuan),
+    documentUrl_(transaction.buktiBayar),
+    documentUrl_(transaction.invoice),
+    transaction.createdAt,
+    transaction.updatedAt
+  ];
 }
 function documentName_(document) { return document ? document.fileName || document.name || '' : ''; }
 function documentUrl_(document) { return document ? document.fileUrl || document.url || '' : ''; }
 
 function rowToTransaction_(row) {
   const makeDocument = (name, url) => (name || url) ? { fileId: extractDriveId_(url), fileName: String(name || 'Link Google Drive'), fileUrl: String(url || '') } : null;
-  let keterangan = '';
-  let jumlahTransaksi = 0;
-  let docPengajuanName = '', docBayarName = '', invoiceName = '';
-  let statusBukti = '';
-  let docPengajuanUrl = '', docBayarUrl = '', invoiceUrl = '';
-  let createdAt = '', updatedAt = '';
-
-  if (row.length >= 15 || (isNaN(parseNominal_(row[4])) && !isNaN(parseNominal_(row[5])))) {
-    keterangan = String(row[4] || '');
-    jumlahTransaksi = parseNominal_(row[5]) || 0;
-    docPengajuanName = row[6];
-    docBayarName = row[7];
-    invoiceName = row[8];
-    statusBukti = String(row[9] || calculateStatus([row[6], row[7], row[8]]));
-    docPengajuanUrl = row[10];
-    docBayarUrl = row[11];
-    invoiceUrl = row[12];
-    createdAt = toIso_(row[13]);
-    updatedAt = toIso_(row[14]);
-  } else {
-    keterangan = '';
-    jumlahTransaksi = parseNominal_(row[4]) || 0;
-    docPengajuanName = row[5];
-    docBayarName = row[6];
-    invoiceName = row[7];
-    statusBukti = String(row[8] || calculateStatus([row[5], row[6], row[7]]));
-    docPengajuanUrl = row[9];
-    docBayarUrl = row[10];
-    invoiceUrl = row[11];
-    createdAt = toIso_(row[12]);
-    updatedAt = toIso_(row[13]);
+  
+  let offset = 0;
+  if (row.length >= 15 && isNaN(parseNominal_(row[4])) && !isNaN(parseNominal_(row[5]))) {
+    offset = 1;
   }
 
+  const noTransaksi = String(row[offset]);
+  const namaBank = String(row[offset + 1]);
+  const tanggalTransaksi = formatDateInput_(row[offset + 2]);
+  const keterangan = String(row[offset + 3] || '');
+  const jumlahTransaksi = parseNominal_(row[offset + 4]) || 0;
+  const docPengajuanName = row[offset + 5];
+  const docBayarName = row[offset + 6];
+  const invoiceName = row[offset + 7];
+  const statusBukti = String(row[offset + 8] || calculateStatus([docPengajuanName, docBayarName, invoiceName]));
+  const docPengajuanUrl = row[offset + 9];
+  const docBayarUrl = row[offset + 10];
+  const invoiceUrl = row[offset + 11];
+  const createdAt = toIso_(row[offset + 12]);
+  const updatedAt = toIso_(row[offset + 13]);
+
   return {
-    id: String(row[0]),
-    noTransaksi: String(row[1]),
-    namaBank: String(row[2]),
-    tanggalTransaksi: formatDateInput_(row[3]),
+    id: noTransaksi,
+    noTransaksi: noTransaksi,
+    namaBank: namaBank,
+    tanggalTransaksi: tanggalTransaksi,
     keterangan: keterangan,
     jumlahTransaksi: jumlahTransaksi,
     buktiPengajuan: makeDocument(docPengajuanName, docPengajuanUrl),
@@ -351,8 +677,33 @@ function rowToTransaction_(row) {
 function extractDriveId_(url) { const match = String(url || '').match(/[-\w]{20,}/); return match ? match[0] : ''; }
 function formatDateInput_(value) { const date = value instanceof Date ? value : new Date(value); return Utilities.formatDate(date, Session.getScriptTimeZone() || 'Asia/Jakarta', 'yyyy-MM-dd'); }
 function toIso_(value) { const date = value instanceof Date ? value : new Date(value); return isNaN(date.getTime()) ? '' : date.toISOString(); }
-function findRowById_(id) { const sheet = getTransactionSheet_(); const values = sheet.getDataRange().getValues(); for (let index = 1; index < values.length; index++) if (String(values[index][0]) === id) return { sheet, rowNumber: index + 1, values: values[index] }; return null; }
-function findRowByTransactionNumber_(number) { const sheet = getTransactionSheet_(); const values = sheet.getDataRange().getValues(); for (let index = 1; index < values.length; index++) if (String(values[index][1]).trim().toLowerCase() === String(number).trim().toLowerCase()) return { sheet, rowNumber: index + 1, values: values[index] }; return null; }
+
+function isTransactionNumberExistsInSheet_(sheet, number) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return false;
+  const values = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  const target = String(number || '').trim().toLowerCase();
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][0] || '').trim().toLowerCase() === target) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function findRowByTransactionNumberInSheet_(sheet, number) {
+  const values = sheet.getDataRange().getValues();
+  const target = String(number || '').trim().toLowerCase();
+  for (let index = 1; index < values.length; index++) {
+    const colVal = String(values[index][0] || '').trim().toLowerCase();
+    const col2Val = values[index].length > 1 ? String(values[index][1] || '').trim().toLowerCase() : '';
+    if (colVal === target || col2Val === target) {
+      return { sheet, rowNumber: index + 1, values: values[index] };
+    }
+  }
+  return null;
+}
+
 function sheetUpdateRow_(sheet, rowNumber, values) { sheet.getRange(rowNumber, 1, 1, values.length).setValues([values]); }
 function parseNominal_(val) {
   if (typeof val === 'number') return val;
