@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>PATRIA MENARA ABADI - Verifikasi Filling</title>
+  <title>PMA Group - Verifikasi Filling</title>
   <meta name="description" content="Aplikasi verifikasi kelengkapan dokumen transaksi keuangan PATRIA MENARA ABADI dengan integrasi Google Sheets dan Google Drive.">
   <meta property="og:title" content="PATRIA MENARA ABADI - Verifikasi Filling">
   <meta property="og:description" content="Aplikasi verifikasi kelengkapan dokumen transaksi keuangan PATRIA MENARA ABADI dengan integrasi Google Sheets dan Google Drive.">
@@ -359,7 +359,40 @@ function call(name, args = []) {
     return Promise.reject(new Error('URL Backend API belum dikonfigurasi. Silakan klik tombol Sambungkan API di pojok kanan atas.'));
   }
 
-  // Gunakan POST dengan text/plain untuk bypass CORS preflight pada Google Apps Script Web App
+  // Operasi pembacaan data: utamakan GET langsung untuk performa cepat dan bebas kendala redirect
+  const readActions = ['getDashboardStats', 'getHistorisData', 'getBanks', 'getData', 'getTransactionById'];
+  if (readActions.includes(name)) {
+    let queryUrl = url + (url.includes('?') ? '&' : '?') + 'action=' + encodeURIComponent(name) + '&_t=' + Date.now();
+    if (name === 'getData' && args[0]) {
+      queryUrl += '&companyKey=' + encodeURIComponent(args[0]) + '&company=' + encodeURIComponent(args[0]);
+    } else if (name === 'getTransactionById' && args[0]) {
+      queryUrl += '&id=' + encodeURIComponent(args[0]) + (args[1] ? '&companyKey=' + encodeURIComponent(args[1]) : '');
+    }
+    return fetch(queryUrl)
+      .then(res => {
+        if (!res.ok) throw new Error('HTTP Error ' + res.status);
+        return res.json();
+      })
+      .then(res => {
+        if (!res.success) throw new Error(res.error || 'Gagal memuat data dari server.');
+        return res.data;
+      })
+      .catch(getErr => {
+        // Fallback coba lewat POST jika GET mengalami kendala
+        return fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: name, args: args })
+        })
+          .then(r => r.json())
+          .then(res => {
+            if (!res.success) throw new Error(res.error || getErr.message);
+            return res.data;
+          });
+      });
+  }
+
+  // Operasi penulisan data (add, update, delete, import): gunakan POST
   return fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -372,23 +405,6 @@ function call(name, args = []) {
     .then(res => {
       if (!res.success) throw new Error(res.error || 'Terjadi kesalahan pada backend.');
       return res.data;
-    })
-    .catch(err => {
-      // Fallback otomatis ke GET untuk aksi pembacaan data jika browser mengalami redirect issue pada POST
-      const readActions = ['getDashboardStats', 'getHistorisData', 'getBanks', 'getData'];
-      if (readActions.includes(name)) {
-        let queryUrl = url + (url.includes('?') ? '&' : '?') + 'action=' + encodeURIComponent(name);
-        if (name === 'getData' && args[0]) {
-          queryUrl += '&company=' + encodeURIComponent(args[0]);
-        }
-        return fetch(queryUrl)
-          .then(res => res.json())
-          .then(res => {
-            if (!res.success) throw new Error(res.error || 'Gagal memuat data dari backend.');
-            return res.data;
-          });
-      }
-      throw err;
     });
 }
 
@@ -1803,6 +1819,7 @@ function loadDashboardStats() {
     return;
   }
 
+  if (isDashboardLoading) return;
   isDashboardLoading = true;
   render();
 
@@ -1825,6 +1842,7 @@ function loadHistorisData() {
     return;
   }
 
+  if (isHistorisLoading) return;
   isHistorisLoading = true;
   render();
 
